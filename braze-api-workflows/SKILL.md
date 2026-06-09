@@ -10,10 +10,9 @@ tags:
   - messaging
   - api
 compatibility:
-  clients:
-    - claude
-    - codex
-    - chatgpt
+  - claude
+  - codex
+  - chatgpt
 ---
 
 # Braze API Workflow Assistant

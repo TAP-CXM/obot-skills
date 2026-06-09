@@ -10,10 +10,9 @@ tags:
   - operations
   - engineering
 compatibility:
-  clients:
-    - claude
-    - codex
-    - chatgpt
+  - claude
+  - codex
+  - chatgpt
 ---
 
 # Release Readiness Review
