@@ -9,10 +9,7 @@ tags:
   - crm
   - messaging
   - api
-compatibility:
-  - claude
-  - codex
-  - chatgpt
+compatibility: claude, codex, chatgpt
 ---
 
 # Braze API Workflow Assistant

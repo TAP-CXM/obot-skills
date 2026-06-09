@@ -9,10 +9,7 @@ tags:
   - qa
   - operations
   - engineering
-compatibility:
-  - claude
-  - codex
-  - chatgpt
+compatibility: claude, codex, chatgpt
 ---
 
 # Release Readiness Review
