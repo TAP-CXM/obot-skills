@@ -1,0 +1,15 @@
+[project]
+name = "braze-mcp-server"
+version = "0.2.0"
+description = "Governed MCP server for Braze REST API access."
+requires-python = ">=3.11"
+dependencies = [
+  "mcp>=1.9.0",
+]
+
+[project.scripts]
+braze-mcp-server = "braze_mcp_server.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

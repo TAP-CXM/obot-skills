@@ -1,0 +1,597 @@
+from __future__ import annotations
+
+import json
+import os
+from typing import Any, Literal
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlencode
+from urllib.request import Request, urlopen
+
+from mcp.server.fastmcp import FastMCP
+
+
+mcp = FastMCP("braze-mcp-server")
+
+
+JsonObject = dict[str, Any]
+
+
+def _require_env(name: str) -> str:
+    value = os.environ.get(name, "").strip()
+    if not value:
+        raise ValueError(f"Missing required environment variable: {name}")
+    return value
+
+
+def _rest_endpoint() -> str:
+    return _require_env("BRAZE_REST_ENDPOINT").rstrip("/")
+
+
+def _api_key() -> str:
+    return _require_env("BRAZE_API_KEY")
+
+
+def _allow_generic_request() -> bool:
+    return os.environ.get("BRAZE_ALLOW_GENERIC_REQUEST") == "true"
+
+
+def _clean_query(query: JsonObject | None) -> JsonObject:
+    return {
+        key: value
+        for key, value in (query or {}).items()
+        if value is not None and value != ""
+    }
+
+
+def _clean_body(body: Any | None) -> Any | None:
+    if not isinstance(body, dict):
+        return body
+    return {
+        key: value
+        for key, value in body.items()
+        if value is not None and value != ""
+    }
+
+
+def _build_url(path: str, query: JsonObject | None = None) -> str:
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    url = f"{_rest_endpoint()}{normalized_path}"
+    filtered = _clean_query(query)
+    if filtered:
+        url = f"{url}?{urlencode(filtered, doseq=True)}"
+    return url
+
+
+def _require_confirmation(confirmed: bool, reason: str) -> None:
+    if not confirmed:
+        raise ValueError(f"{reason} Re-run with confirmed=true after human approval.")
+
+
+def _braze_request(
+    method: str,
+    path: str,
+    *,
+    query: JsonObject | None = None,
+    body: Any | None = None,
+) -> Any:
+    headers = {
+        "Authorization": f"Bearer {_api_key()}",
+        "Accept": "application/json",
+    }
+    data = None
+    cleaned_body = _clean_body(body)
+    if cleaned_body is not None:
+        headers["Content-Type"] = "application/json"
+        data = json.dumps(cleaned_body).encode("utf-8")
+
+    request = Request(
+        _build_url(path, query),
+        data=data,
+        headers=headers,
+        method=method.upper(),
+    )
+
+    try:
+        with urlopen(request, timeout=60) as response:
+            raw = response.read().decode("utf-8")
+    except HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise ValueError(f"Braze API {exc.code}: {detail}") from exc
+    except URLError as exc:
+        raise ValueError(f"Braze API request failed: {exc.reason}") from exc
+
+    if not raw:
+        return {}
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+
+
+@mcp.tool()
+def braze_health() -> JsonObject:
+    """Check MCP server configuration without exposing secrets."""
+    return {
+        "ok": True,
+        "server": "braze-mcp-server",
+        "version": "0.2.0",
+        "rest_endpoint_configured": bool(os.environ.get("BRAZE_REST_ENDPOINT")),
+        "api_key_configured": bool(os.environ.get("BRAZE_API_KEY")),
+        "default_app_id_configured": bool(os.environ.get("BRAZE_DEFAULT_APP_ID")),
+        "generic_request_enabled": _allow_generic_request(),
+    }
+
+
+@mcp.tool()
+def braze_request(
+    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"],
+    path: str,
+    query: JsonObject | None = None,
+    body: Any | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Make a generic Braze REST request when explicitly enabled on the MCP host."""
+    if not _allow_generic_request():
+        raise ValueError(
+            "Generic Braze requests are disabled. Use named tools or set BRAZE_ALLOW_GENERIC_REQUEST=true."
+        )
+    if method in {"POST", "PUT", "PATCH", "DELETE"}:
+        _require_confirmation(confirmed, "Generic mutating Braze requests are high risk.")
+    return _braze_request(method, path, query=query, body=body)
+
+
+@mcp.tool()
+def braze_list_campaigns(
+    page: int | None = None,
+    include_archived: bool | None = None,
+    sort_direction: Literal["asc", "desc"] | None = None,
+    modified_after: str | None = None,
+) -> Any:
+    """List Braze campaigns, optionally filtered by modified_after."""
+    return _braze_request(
+        "GET",
+        "/campaigns/list",
+        query={
+            "page": page,
+            "include_archived": include_archived,
+            "sort_direction": sort_direction,
+            "modified_after": modified_after,
+        },
+    )
+
+
+@mcp.tool()
+def braze_get_campaign_details(
+    campaign_id: str,
+    post_launch_draft_version: bool | None = None,
+) -> Any:
+    """Get metadata and message details for a campaign."""
+    return _braze_request(
+        "GET",
+        "/campaigns/details",
+        query={
+            "campaign_id": campaign_id,
+            "post_launch_draft_version": post_launch_draft_version,
+        },
+    )
+
+
+@mcp.tool()
+def braze_list_segments(
+    page: int | None = None,
+    sort_direction: Literal["asc", "desc"] | None = None,
+) -> Any:
+    """List Braze segments and their Segment API identifiers."""
+    return _braze_request(
+        "GET",
+        "/segments/list",
+        query={"page": page, "sort_direction": sort_direction},
+    )
+
+
+@mcp.tool()
+def braze_get_segment_details(segment_id: str) -> Any:
+    """Get metadata and filter description for a Braze segment."""
+    return _braze_request(
+        "GET",
+        "/segments/details",
+        query={"segment_id": segment_id},
+    )
+
+
+@mcp.tool()
+def braze_get_segment_analytics(
+    segment_id: str,
+    length: int,
+    ending_at: str | None = None,
+) -> Any:
+    """Get segment size time-series analytics from /segments/data_series."""
+    return _braze_request(
+        "GET",
+        "/segments/data_series",
+        query={"segment_id": segment_id, "length": length, "ending_at": ending_at},
+    )
+
+
+@mcp.tool()
+def braze_export_users_by_segment(
+    segment_id: str,
+    fields_to_export: list[str],
+    callback_endpoint: str | None = None,
+    custom_attributes_to_export: list[str] | None = None,
+    output_format: Literal["zip", "gzip"] | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Export users in a segment. High-risk because it may expose personal data."""
+    _require_confirmation(
+        confirmed,
+        "Exporting users by segment can expose personal data and may generate downloadable files.",
+    )
+    return _braze_request(
+        "POST",
+        "/users/export/segment",
+        body={
+            "segment_id": segment_id,
+            "callback_endpoint": callback_endpoint,
+            "fields_to_export": fields_to_export,
+            "custom_attributes_to_export": custom_attributes_to_export,
+            "output_format": output_format,
+        },
+    )
+
+
+@mcp.tool()
+def braze_export_users_by_identifier(
+    external_ids: list[str] | None = None,
+    user_aliases: list[JsonObject] | None = None,
+    device_id: str | None = None,
+    email_address: str | None = None,
+    phone: str | None = None,
+    fields_to_export: list[str] | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Export user profiles by identifier. High-risk because it can expose personal data."""
+    _require_confirmation(
+        confirmed,
+        "Exporting user profiles by identifier can expose personal data.",
+    )
+    return _braze_request(
+        "POST",
+        "/users/export/ids",
+        body={
+            "external_ids": external_ids,
+            "user_aliases": user_aliases,
+            "device_id": device_id,
+            "email_address": email_address,
+            "phone": phone,
+            "fields_to_export": fields_to_export,
+        },
+    )
+
+
+@mcp.tool()
+def braze_list_canvases(
+    page: int | None = None,
+    include_archived: bool | None = None,
+    sort_direction: Literal["asc", "desc"] | None = None,
+) -> Any:
+    """List Braze Canvases and their Canvas API identifiers."""
+    return _braze_request(
+        "GET",
+        "/canvas/list",
+        query={
+            "page": page,
+            "include_archived": include_archived,
+            "sort_direction": sort_direction,
+        },
+    )
+
+
+@mcp.tool()
+def braze_get_canvas_details(canvas_id: str) -> Any:
+    """Get metadata for a Braze Canvas."""
+    return _braze_request(
+        "GET",
+        "/canvas/details",
+        query={"canvas_id": canvas_id},
+    )
+
+
+@mcp.tool()
+def braze_get_canvas_analytics(
+    canvas_id: str,
+    length: int,
+    ending_at: str | None = None,
+) -> Any:
+    """Get Canvas time-series analytics from /canvas/data_series."""
+    return _braze_request(
+        "GET",
+        "/canvas/data_series",
+        query={"canvas_id": canvas_id, "length": length, "ending_at": ending_at},
+    )
+
+
+@mcp.tool()
+def braze_get_canvas_data_summary(
+    canvas_id: str,
+    length: int,
+    ending_at: str | None = None,
+) -> Any:
+    """Get Canvas rollup analytics from /canvas/data_summary."""
+    return _braze_request(
+        "GET",
+        "/canvas/data_summary",
+        query={"canvas_id": canvas_id, "length": length, "ending_at": ending_at},
+    )
+
+
+@mcp.tool()
+def braze_duplicate_canvas(
+    canvas_id: str,
+    name: str,
+    description: str | None = None,
+    tag_names: list[str] | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Duplicate a Braze Canvas. Requires confirmed=true."""
+    _require_confirmation(confirmed, "Duplicating a Braze Canvas changes the Braze workspace.")
+    return _braze_request(
+        "POST",
+        "/canvas/duplicate",
+        body={
+            "canvas_id": canvas_id,
+            "name": name,
+            "description": description,
+            "tag_names": tag_names,
+        },
+    )
+
+
+@mcp.tool()
+def braze_duplicate_campaign(campaign_id: str, name: str, confirmed: bool = False) -> Any:
+    """Duplicate an existing Braze campaign. Requires confirmed=true."""
+    _require_confirmation(confirmed, "Duplicating a Braze campaign changes the Braze workspace.")
+    return _braze_request(
+        "POST",
+        "/campaigns/duplicate",
+        body={"campaign_id": campaign_id, "name": name},
+    )
+
+
+@mcp.tool()
+def braze_trigger_campaign(
+    campaign_id: str,
+    recipients: list[JsonObject] | None = None,
+    broadcast: bool | None = None,
+    trigger_properties: JsonObject | None = None,
+    schedule: JsonObject | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Trigger a dashboard-configured API campaign. Requires confirmed=true."""
+    _require_confirmation(confirmed, "Triggering a Braze campaign can message users.")
+    return _braze_request(
+        "POST",
+        "/campaigns/trigger/send",
+        body={
+            "campaign_id": campaign_id,
+            "recipients": recipients,
+            "broadcast": broadcast,
+            "trigger_properties": trigger_properties,
+            "schedule": schedule,
+        },
+    )
+
+
+@mcp.tool()
+def braze_send_messages(
+    messages: JsonObject,
+    recipients: list[JsonObject] | None = None,
+    audience: JsonObject | None = None,
+    broadcast: bool | None = None,
+    campaign_id: str | None = None,
+    send_id: str | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Send API-defined Braze messages with /messages/send. Requires confirmed=true."""
+    _require_confirmation(confirmed, "Sending Braze messages can message users.")
+    return _braze_request(
+        "POST",
+        "/messages/send",
+        body={
+            "messages": messages,
+            "recipients": recipients,
+            "audience": audience,
+            "broadcast": broadcast,
+            "campaign_id": campaign_id,
+            "send_id": send_id,
+        },
+    )
+
+
+@mcp.tool()
+def braze_users_track(
+    attributes: list[JsonObject] | None = None,
+    events: list[JsonObject] | None = None,
+    purchases: list[JsonObject] | None = None,
+    partner: str | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Write user attributes, events, and purchases through /users/track."""
+    _require_confirmation(confirmed, "Braze /users/track mutates user profiles and events.")
+    return _braze_request(
+        "POST",
+        "/users/track",
+        body={
+            "attributes": attributes,
+            "events": events,
+            "purchases": purchases,
+            "partner": partner,
+        },
+    )
+
+
+@mcp.tool()
+def braze_list_email_templates(
+    modified_after: str | None = None,
+    modified_before: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+) -> Any:
+    """List email templates from Braze."""
+    return _braze_request(
+        "GET",
+        "/templates/email/list",
+        query={
+            "modified_after": modified_after,
+            "modified_before": modified_before,
+            "limit": limit,
+            "offset": offset,
+        },
+    )
+
+
+@mcp.tool()
+def braze_list_custom_events(page: int | None = None) -> Any:
+    """List custom event names recorded for the workspace."""
+    return _braze_request("GET", "/events/list", query={"page": page})
+
+
+@mcp.tool()
+def braze_list_custom_attributes(cursor: str | None = None) -> Any:
+    """List custom attributes recorded for the workspace."""
+    return _braze_request("GET", "/custom_attributes", query={"cursor": cursor})
+
+
+@mcp.tool()
+def braze_get_subscription_group_status(
+    subscription_group_id: str,
+    external_id: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+) -> Any:
+    """Get a user's status in a specific subscription group."""
+    return _braze_request(
+        "GET",
+        "/subscription/status/get",
+        query={
+            "subscription_group_id": subscription_group_id,
+            "external_id": external_id,
+            "email": email,
+            "phone": phone,
+        },
+    )
+
+
+@mcp.tool()
+def braze_list_user_subscription_groups(
+    external_id: str | None = None,
+    email: str | None = None,
+    phone: str | None = None,
+) -> Any:
+    """List subscription groups and history for a user."""
+    return _braze_request(
+        "GET",
+        "/subscription/user/status",
+        query={"external_id": external_id, "email": email, "phone": phone},
+    )
+
+
+@mcp.tool()
+def braze_update_subscription_group_status(
+    subscription_group_id: str,
+    subscription_state: Literal["subscribed", "unsubscribed"],
+    external_id: list[str] | None = None,
+    email: list[str] | None = None,
+    phone: list[str] | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Update subscription group status for up to 50 users. Requires confirmed=true."""
+    _require_confirmation(
+        confirmed,
+        "Updating subscription group status changes consent or preference state.",
+    )
+    return _braze_request(
+        "POST",
+        "/subscription/status/set",
+        body={
+            "subscription_group_id": subscription_group_id,
+            "subscription_state": subscription_state,
+            "external_id": external_id,
+            "email": email,
+            "phone": phone,
+        },
+    )
+
+
+@mcp.tool()
+def braze_list_catalogs() -> Any:
+    """List Braze catalogs."""
+    return _braze_request("GET", "/catalogs")
+
+
+@mcp.tool()
+def braze_list_catalog_items(
+    catalog_name: str,
+    cursor: str | None = None,
+) -> Any:
+    """List multiple item details for a Braze catalog."""
+    safe_catalog = quote(catalog_name, safe="")
+    return _braze_request(
+        "GET",
+        f"/catalogs/{safe_catalog}/items",
+        query={"cursor": cursor},
+    )
+
+
+@mcp.tool()
+def braze_get_catalog_item(catalog_name: str, item_id: str) -> Any:
+    """Get one Braze catalog item by catalog name and item ID."""
+    safe_catalog = quote(catalog_name, safe="")
+    safe_item = quote(item_id, safe="")
+    return _braze_request("GET", f"/catalogs/{safe_catalog}/items/{safe_item}")
+
+
+@mcp.tool()
+def braze_create_email_template(
+    template_name: str,
+    subject: str,
+    body: str,
+    sender: str | None = None,
+    reply_to: str | None = None,
+    preheader: str | None = None,
+    tags: list[str] | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Create a Braze email template. Requires confirmed=true."""
+    _require_confirmation(confirmed, "Creating a Braze email template changes the Braze workspace.")
+    return _braze_request(
+        "POST",
+        "/templates/email/create",
+        body={
+            "template_name": template_name,
+            "subject": subject,
+            "body": body,
+            "sender": sender,
+            "reply_to": reply_to,
+            "preheader": preheader,
+            "tags": tags,
+        },
+    )
+
+
+@mcp.tool()
+def braze_list_scheduled_broadcasts(end_time: str) -> Any:
+    """List scheduled campaign and Canvas broadcasts before end_time."""
+    return _braze_request(
+        "GET",
+        "/messages/scheduled_broadcasts",
+        query={"end_time": end_time},
+    )
+
+
+def main() -> None:
+    mcp.run()
+
+
+if __name__ == "__main__":
+    main()
