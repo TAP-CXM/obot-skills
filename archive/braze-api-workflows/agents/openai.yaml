@@ -1,0 +1,4 @@
+interface:
+  display_name: "Braze API"
+  short_description: "Use Braze REST APIs safely"
+  default_prompt: "Use $braze-campaigns to prepare or run a Braze REST API workflow."

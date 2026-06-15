@@ -1,0 +1,4 @@
+interface:
+  display_name: "Braze Campaign Ops"
+  short_description: "Plan and QA Braze work through governed MCP tools"
+  default_prompt: "Use $braze-campaign-ops to plan, validate, or execute a Braze campaign workflow through the Braze MCP server."

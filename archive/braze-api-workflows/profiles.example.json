@@ -1,0 +1,6 @@
+{
+  "Example Sandbox": {
+    "rest_endpoint": "https://rest.example.braze.com",
+    "api_key": "replace-me"
+  }
+}
