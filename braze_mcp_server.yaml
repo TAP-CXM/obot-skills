@@ -1,0 +1,100 @@
+name: Braze MCP Server
+serverUserType: singleUser
+shortDescription: Governed Braze REST API access for campaigns, Canvases, templates, users, and catalog data.
+description: |
+  A governed Braze MCP server for operational campaign workflows.
+
+  ## Features
+
+  - Read campaign, Canvas, segment, template, subscription, and catalog metadata.
+  - Trigger campaigns, send messages, update users, duplicate Braze objects, and create templates only when calls include explicit confirmation.
+  - Keep Braze credentials in Obot-managed environment configuration rather than committed files.
+
+  ## What you'll need to connect
+
+  **Required:**
+
+  - **Braze REST Endpoint**: Your workspace REST endpoint, for example `https://rest.iad-01.braze.com`.
+  - **Braze API Key**: A Braze REST API key with only the permissions needed for the tools you intend to use.
+
+  **Optional:**
+
+  - **Default App ID**: Used by payloads that need a default app context.
+  - **Allow Generic Request**: Set to `true` only in trusted admin/debug environments.
+metadata:
+  categories: CRM, SaaS & API Integrations, Automation
+icon: https://avatars.githubusercontent.com/u/7359361?s=200&v=4
+repoURL: https://github.com/TAP-CXM/obot-skills
+env:
+  - key: BRAZE_REST_ENDPOINT
+    name: Braze REST Endpoint
+    required: true
+    sensitive: false
+    description: Your Braze REST endpoint, for example https://rest.iad-01.braze.com.
+  - key: BRAZE_API_KEY
+    name: Braze API Key
+    required: true
+    sensitive: true
+    description: Braze REST API key with the minimum permissions needed for the enabled workflows.
+  - key: BRAZE_DEFAULT_APP_ID
+    name: Braze Default App ID
+    required: false
+    sensitive: false
+    description: Optional default app identifier for payloads that need app context.
+  - key: BRAZE_ALLOW_GENERIC_REQUEST
+    name: Allow Generic Request
+    required: false
+    sensitive: false
+    description: Set to true only for trusted admin/debug environments.
+runtime: uvx
+uvxConfig:
+  package: 'git+https://github.com/TAP-CXM/obot-skills.git#subdirectory=Braze/MCP/braze-mcp-server'
+  command: braze-mcp-server
+  startupTimeoutSeconds: 120
+toolPreview:
+  - name: braze_health
+    description: Check MCP server configuration without exposing secrets.
+    params: {}
+  - name: braze_list_campaigns
+    description: List Braze campaigns, optionally filtered by page, archive status, sort direction, or modified date.
+    params:
+      page: Optional page number.
+      include_archived: Whether archived campaigns should be included.
+      sort_direction: Sort direction, either asc or desc.
+      modified_after: Optional modified-after timestamp.
+  - name: braze_get_campaign_details
+    description: Get metadata and message details for a campaign.
+    params:
+      campaign_id: Braze campaign API identifier.
+      post_launch_draft_version: Whether to retrieve the post-launch draft version.
+  - name: braze_list_canvases
+    description: List Braze Canvases.
+    params:
+      page: Optional page number.
+      include_archived: Whether archived Canvases should be included.
+      sort_direction: Sort direction, either asc or desc.
+      modified_after: Optional modified-after timestamp.
+  - name: braze_trigger_campaign
+    description: Trigger an API campaign. Requires confirmed=true after human approval.
+    params:
+      campaign_id: Braze campaign API identifier.
+      recipients: Recipient list.
+      audience: Audience object.
+      broadcast: Whether to broadcast to the full target audience.
+      trigger_properties: Optional trigger properties.
+      confirmed: Must be true after approval.
+  - name: braze_send_messages
+    description: Send an API-defined message. Requires confirmed=true after human approval.
+    params:
+      messages: Message payload object.
+      recipients: Recipient list.
+      audience: Audience object.
+      broadcast: Whether to broadcast to the full target audience.
+      confirmed: Must be true after approval.
+  - name: braze_users_track
+    description: Track user attributes, events, or purchases. Requires confirmed=true after human approval.
+    params:
+      attributes: Attribute objects.
+      events: Event objects.
+      purchases: Purchase objects.
+      confirmed: Must be true after approval.

@@ -10,15 +10,55 @@ From this folder during local testing:
 uvx --from . braze-mcp-server
 ```
 
-In Obot, configure the MCP command as `uvx` with args similar to:
+Do not point Obot at an individual `.whl` file. Obot's Python runtime expects UVX package configuration. For this GitHub repo, use the Python package source and command.
+
+Manual Obot setup:
+
+1. Go to MCP Management -> MCP Servers -> Add MCP Server.
+2. Choose Single User Server.
+3. Select the UVX runtime.
+4. Set Package to:
 
 ```text
---from
-<path-or-git-url-to-this-folder>
+git+https://github.com/TAP-CXM/obot-skills.git#subdirectory=Braze/MCP/braze-mcp-server
+```
+
+5. Set Command to:
+
+```text
 braze-mcp-server
 ```
 
-If you publish this package to a private index or Git repo, point `--from` at that package source.
+For testing from this PR branch before it is merged, use:
+
+```text
+git+https://github.com/TAP-CXM/obot-skills.git@codex/add-braze-campaign-ops-mcp#subdirectory=Braze/MCP/braze-mcp-server
+```
+
+This corresponds to:
+
+```bash
+uvx --from 'git+https://github.com/TAP-CXM/obot-skills.git#subdirectory=Braze/MCP/braze-mcp-server' braze-mcp-server
+```
+
+## Obot Git Source
+
+This repository includes `braze_mcp_server.yaml`, an Obot MCP catalog entry. After this branch is merged, an Obot administrator can add this repository under Admin -> MCP Servers -> Git Source URLs:
+
+```text
+https://github.com/TAP-CXM/obot-skills
+```
+
+For testing this PR branch as a Git source before merge, use:
+
+```text
+https://github.com/TAP-CXM/obot-skills/codex/add-braze-campaign-ops-mcp
+```
+
+The catalog entry uses UVX with:
+
+- Package: `git+https://github.com/TAP-CXM/obot-skills.git#subdirectory=Braze/MCP/braze-mcp-server`
+- Command: `braze-mcp-server`
 
 ## Configuration
 
