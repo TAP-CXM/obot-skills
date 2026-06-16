@@ -26,6 +26,8 @@ Skills prepare and judge. MCP servers execute.
 7. Call the Braze MCP server only after required human approval is present.
 8. Summarize the result with Braze IDs, endpoint/tool used, assumptions, and next checks.
 
+For ambiguous performance questions, do not answer by only listing objects. Use a performance/ranking MCP tool when one exists. If the user asks for the "best performing" campaign without a KPI, use open rate as the default metric and explicitly state that assumption, unless the surrounding context names another metric.
+
 ## Execution Boundary
 
 Allowed in this skill:

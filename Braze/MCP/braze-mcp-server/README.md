@@ -77,7 +77,10 @@ Do not store production API keys in skill folders or committed files.
 - `braze_request`
 - `braze_list_campaigns`
 - `braze_get_campaign_details`
+- `braze_get_campaign_analytics`
+- `braze_rank_campaigns_by_performance`
 - `braze_list_segments`
+- `braze_list_segment_sizes`
 - `braze_get_segment_details`
 - `braze_get_segment_analytics`
 - `braze_export_users_by_segment`

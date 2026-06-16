@@ -62,6 +62,31 @@ toolPreview:
       include_archived: Whether archived campaigns should be included.
       sort_direction: Sort direction, either asc or desc.
       modified_after: Optional modified-after timestamp.
+  - name: braze_rank_campaigns_by_performance
+    description: Rank campaigns by performance; use for best performing campaign. Defaults to open_rate when no metric is specified.
+    params:
+      metric: Performance metric, one of open_rate, click_rate, conversion_rate, opens, clicks, conversions, or sends.
+      length: Number of days for the campaign analytics window.
+      ending_at: Optional analytics end timestamp.
+      page: Optional campaign-list page number.
+      include_archived: Whether archived campaigns should be included.
+      sort_direction: Optional campaign-list sort direction, either asc or desc.
+      modified_after: Optional modified-after timestamp.
+      limit: Number of ranked campaigns to return.
+  - name: braze_get_campaign_analytics
+    description: Get campaign time-series analytics for a known campaign_id.
+    params:
+      campaign_id: Braze campaign API identifier.
+      length: Number of days for the campaign analytics window.
+      ending_at: Optional analytics end timestamp.
+  - name: braze_list_segment_sizes
+    description: List Braze segments/audiences with latest sizes; use for largest segment or audience-size inventory.
+    params:
+      length: Number of days for the size analytics window.
+      page: Optional segment-list page number.
+      sort_direction: Optional segment-list sort direction, either asc or desc.
+      ending_at: Optional analytics end timestamp.
+      max_segments: Maximum number of segments to enrich with analytics.
   - name: braze_get_campaign_details
     description: Get metadata and message details for a campaign.
     params:
