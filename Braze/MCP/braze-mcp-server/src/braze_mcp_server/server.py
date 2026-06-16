@@ -101,6 +101,34 @@ def _default_email_from(from_email: str | None) -> str:
     )
 
 
+def _normalize_user_track_attributes(attributes: list[JsonObject] | None) -> list[JsonObject] | None:
+    if attributes is None:
+        return None
+
+    normalized: list[JsonObject] = []
+    for attribute in attributes:
+        if not isinstance(attribute, dict):
+            normalized.append(attribute)
+            continue
+
+        cleaned = _clean_value(attribute)
+        if not isinstance(cleaned, dict):
+            continue
+
+        has_primary_identifier = any(cleaned.get(key) for key in ("external_id", "braze_id", "user_alias"))
+        email = cleaned.get("email")
+        if not has_primary_identifier and isinstance(email, str) and set(cleaned) == {"email"}:
+            cleaned = {
+                "email": email,
+                "_update_existing_only": False,
+                "user_alias": _email_alias(email),
+            }
+
+        normalized.append(cleaned)
+
+    return normalized
+
+
 def _braze_request(
     method: str,
     path: str,
@@ -148,7 +176,7 @@ def braze_health() -> JsonObject:
     return {
         "ok": True,
         "server": "braze-mcp-server",
-        "version": "0.3.2",
+        "version": "0.3.3",
         "rest_endpoint_configured": bool(os.environ.get("BRAZE_REST_ENDPOINT")),
         "api_key_configured": bool(os.environ.get("BRAZE_API_KEY")),
         "default_app_id_configured": bool(os.environ.get("BRAZE_DEFAULT_APP_ID")),
@@ -875,7 +903,7 @@ def braze_users_track(
         "POST",
         "/users/track",
         body={
-            "attributes": attributes,
+            "attributes": _normalize_user_track_attributes(attributes),
             "events": events,
             "purchases": purchases,
             "partner": partner,
