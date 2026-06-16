@@ -87,6 +87,15 @@ toolPreview:
       sort_direction: Optional segment-list sort direction, either asc or desc.
       ending_at: Optional analytics end timestamp.
       max_segments: Maximum number of segments to enrich with analytics.
+  - name: braze_count_users
+    description: Count users through saved Braze segment analytics; use for total user counts or saved-segment/filter count questions.
+    params:
+      query: Natural-language count request or filter text, for example "how many users are in Braze" or "users named Dirk".
+      segment_id: Optional Braze Segment API identifier when known.
+      segment_name: Optional saved segment name when known.
+      length: Number of days for the segment analytics window.
+      ending_at: Optional analytics end timestamp.
+      max_segments: Maximum number of segments to inspect for matching.
   - name: braze_get_campaign_details
     description: Get metadata and message details for a campaign.
     params:

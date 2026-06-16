@@ -11,6 +11,7 @@ Use the smallest named MCP tool that matches the task. Avoid generic REST calls 
 | Rank campaign performance | `braze_rank_campaigns_by_performance` | Use for "best performing campaign" or campaign ranking. If the user does not specify a metric, default to `open_rate` and state that assumption; otherwise set `metric` to the requested KPI. |
 | List segments / audiences | `braze_list_segments` | Use to find Segment API identifiers. |
 | List segment / audience sizes | `braze_list_segment_sizes` | Use for "all audiences with sizes", "largest segment", or ranked audience-size inventory. This combines segment listing and size analytics. |
+| Count users | `braze_count_users` | Use for "how many users are in Braze", total user counts, and saved-segment/filter count questions. For ad hoc filters like name/custom attribute/event conditions, use this tool first; if no saved segment matches, explain that Braze needs a saved segment or explicit export workflow before the count can be computed. |
 | Get segment details | `braze_get_segment_details` | Use to inspect segment filter descriptions before targeting. |
 | Get segment analytics | `braze_get_segment_analytics` | Use only when a specific `segment_id` is already known and a time-series trend for that single segment is needed. |
 | Export users by segment | `braze_export_users_by_segment` | High-risk PII/data export; requires approval and `confirmed: true`. |
