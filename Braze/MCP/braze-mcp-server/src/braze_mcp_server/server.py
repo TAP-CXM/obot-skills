@@ -114,7 +114,7 @@ def braze_health() -> JsonObject:
     return {
         "ok": True,
         "server": "braze-mcp-server",
-        "version": "0.2.0",
+        "version": "0.3.0",
         "rest_endpoint_configured": bool(os.environ.get("BRAZE_REST_ENDPOINT")),
         "api_key_configured": bool(os.environ.get("BRAZE_API_KEY")),
         "default_app_id_configured": bool(os.environ.get("BRAZE_DEFAULT_APP_ID")),
@@ -177,6 +177,114 @@ def braze_get_campaign_details(
 
 
 @mcp.tool()
+def braze_get_campaign_analytics(
+    campaign_id: str,
+    length: int,
+    ending_at: str | None = None,
+) -> Any:
+    """Get campaign time-series analytics from /campaigns/data_series."""
+    return _braze_request(
+        "GET",
+        "/campaigns/data_series",
+        query={"campaign_id": campaign_id, "length": length, "ending_at": ending_at},
+    )
+
+
+def _metric_total(value: Any, keys: set[str]) -> float:
+    if isinstance(value, dict):
+        total = 0.0
+        for key, child in value.items():
+            if key.lower() in keys and isinstance(child, (int, float)) and not isinstance(child, bool):
+                total += float(child)
+            total += _metric_total(child, keys)
+        return total
+    if isinstance(value, list):
+        return sum(_metric_total(item, keys) for item in value)
+    return 0.0
+
+
+def _campaign_score(payload: Any, metric: str) -> JsonObject:
+    metric_keys = {
+        "sends": {"sent", "sends", "delivered"},
+        "opens": {"opens", "unique_opens"},
+        "clicks": {"clicks", "unique_clicks"},
+        "conversions": {"conversions", "conversions1", "conversion"},
+    }
+    totals = {name: _metric_total(payload, keys) for name, keys in metric_keys.items()}
+    if metric == "open_rate":
+        score = totals["opens"] / totals["sends"] if totals["sends"] else None
+    elif metric == "click_rate":
+        score = totals["clicks"] / totals["sends"] if totals["sends"] else None
+    elif metric == "conversion_rate":
+        score = totals["conversions"] / totals["sends"] if totals["sends"] else None
+    else:
+        score = totals[metric]
+    return {"score": score, **totals}
+
+
+@mcp.tool()
+def braze_rank_campaigns_by_performance(
+    metric: Literal["open_rate", "click_rate", "conversion_rate", "opens", "clicks", "conversions", "sends"] = "open_rate",
+    length: int = 30,
+    ending_at: str | None = None,
+    page: int | None = None,
+    include_archived: bool | None = None,
+    sort_direction: Literal["asc", "desc"] | None = None,
+    modified_after: str | None = None,
+    limit: int = 1,
+) -> JsonObject:
+    """Rank campaigns by performance; use for best performing campaign. Defaults to open_rate."""
+    campaign_response = braze_list_campaigns(
+        page=page,
+        include_archived=include_archived,
+        sort_direction=sort_direction,
+        modified_after=modified_after,
+    )
+    campaigns = campaign_response.get("campaigns") if isinstance(campaign_response, dict) else None
+    if not isinstance(campaigns, list):
+        campaigns = []
+
+    rows: list[JsonObject] = []
+    for campaign in campaigns:
+        if not isinstance(campaign, dict) or not campaign.get("id"):
+            continue
+        campaign_id = str(campaign["id"])
+        row: JsonObject = {
+            "id": campaign_id,
+            "name": campaign.get("name") or campaign_id,
+            "is_api_campaign": campaign.get("is_api_campaign"),
+            "last_edited": campaign.get("last_edited"),
+            "metric": metric,
+        }
+        try:
+            analytics = braze_get_campaign_analytics(
+                campaign_id=campaign_id,
+                length=length,
+                ending_at=ending_at,
+            )
+            row.update(_campaign_score(analytics, metric))
+        except Exception as exc:
+            row.update({"score": None, "error": str(exc)})
+        rows.append(row)
+
+    rows.sort(
+        key=lambda item: item["score"] if isinstance(item.get("score"), (int, float)) else -1,
+        reverse=True,
+    )
+    max_results = max(1, limit)
+    ranked = rows[:max_results]
+    return {
+        "metric": metric,
+        "default_metric_used": metric == "open_rate",
+        "length": length,
+        "campaigns": ranked,
+        "best_campaign": ranked[0] if ranked else None,
+        "total_campaigns_checked": len(rows),
+        "message": "success",
+    }
+
+
+@mcp.tool()
 def braze_list_segments(
     page: int | None = None,
     sort_direction: Literal["asc", "desc"] | None = None,
@@ -211,6 +319,71 @@ def braze_get_segment_analytics(
         "/segments/data_series",
         query={"segment_id": segment_id, "length": length, "ending_at": ending_at},
     )
+
+
+def _latest_segment_size(payload: Any) -> JsonObject:
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        rows = []
+
+    latest: JsonObject = {}
+    for row in rows:
+        if isinstance(row, dict) and row.get("size") is not None:
+            latest = row
+
+    return {
+        "size": latest.get("size"),
+        "time": latest.get("time"),
+    }
+
+
+@mcp.tool()
+def braze_list_segment_sizes(
+    length: int = 1,
+    page: int | None = None,
+    sort_direction: Literal["asc", "desc"] | None = None,
+    ending_at: str | None = None,
+    max_segments: int = 50,
+) -> JsonObject:
+    """List Braze segments/audiences with latest sizes; use for largest segment or audience-size inventory."""
+    segment_response = braze_list_segments(page=page, sort_direction=sort_direction)
+    segments = segment_response.get("segments") if isinstance(segment_response, dict) else None
+    if not isinstance(segments, list):
+        segments = []
+
+    rows: list[JsonObject] = []
+    for segment in segments[: max(0, max_segments)]:
+        if not isinstance(segment, dict) or not segment.get("id"):
+            continue
+        segment_id = str(segment["id"])
+        row: JsonObject = {
+            "id": segment_id,
+            "name": segment.get("name") or segment_id,
+            "analytics_tracking_enabled": segment.get("analytics_tracking_enabled"),
+        }
+        try:
+            analytics = braze_get_segment_analytics(
+                segment_id=segment_id,
+                length=length,
+                ending_at=ending_at,
+            )
+            latest = _latest_segment_size(analytics)
+            row.update(latest)
+        except Exception as exc:
+            row.update({"size": None, "time": None, "error": str(exc)})
+        rows.append(row)
+
+    rows.sort(
+        key=lambda item: item["size"] if isinstance(item.get("size"), (int, float)) else -1,
+        reverse=True,
+    )
+    return {
+        "audiences": rows,
+        "largest": rows[0] if rows else None,
+        "total_audiences_checked": len(rows),
+        "truncated": len(segments) > len(rows),
+        "message": "success",
+    }
 
 
 @mcp.tool()
