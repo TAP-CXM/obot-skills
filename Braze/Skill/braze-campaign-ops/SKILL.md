@@ -28,6 +28,8 @@ Skills prepare and judge. MCP servers execute.
 
 For ambiguous performance questions, do not answer by only listing objects. Use a performance/ranking MCP tool when one exists. If the user asks for the "best performing" campaign without a KPI, use open rate as the default metric and explicitly state that assumption, unless the surrounding context names another metric.
 
+For user-count questions, do not answer by only listing users, segments, or audiences. Use a count-oriented MCP tool when one exists. If the user asks how many users match an ad hoc filter such as a name, custom attribute, or event condition, first try the count tool with the requested filter text. If no saved segment matches, explain that Braze needs a saved segment or approved export workflow before that filtered count can be computed.
+
 ## Execution Boundary
 
 Allowed in this skill:

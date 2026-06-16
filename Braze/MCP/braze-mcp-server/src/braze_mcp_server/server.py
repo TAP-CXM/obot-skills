@@ -114,7 +114,7 @@ def braze_health() -> JsonObject:
     return {
         "ok": True,
         "server": "braze-mcp-server",
-        "version": "0.3.0",
+        "version": "0.3.1",
         "rest_endpoint_configured": bool(os.environ.get("BRAZE_REST_ENDPOINT")),
         "api_key_configured": bool(os.environ.get("BRAZE_API_KEY")),
         "default_app_id_configured": bool(os.environ.get("BRAZE_DEFAULT_APP_ID")),
@@ -337,6 +337,98 @@ def _latest_segment_size(payload: Any) -> JsonObject:
     }
 
 
+def _normalized_words(value: str | None) -> set[str]:
+    stop_words = {
+        "a",
+        "all",
+        "an",
+        "are",
+        "braze",
+        "called",
+        "count",
+        "do",
+        "does",
+        "filter",
+        "first",
+        "have",
+        "has",
+        "how",
+        "in",
+        "last",
+        "many",
+        "name",
+        "named",
+        "number",
+        "of",
+        "the",
+        "there",
+        "total",
+        "user",
+        "users",
+        "with",
+    }
+    raw_words = "".join(character.lower() if character.isalnum() else " " for character in (value or ""))
+    return {word for word in raw_words.split() if word and word not in stop_words}
+
+
+def _segment_name(segment: JsonObject) -> str:
+    return str(segment.get("name") or segment.get("id") or "")
+
+
+def _looks_like_total_user_count(query: str | None, segment_name: str | None) -> bool:
+    text = f"{query or ''} {segment_name or ''}".lower()
+    return (
+        "all users" in text
+        or "total users" in text
+        or "how many users" in text
+        or "users are in braze" in text
+    )
+
+
+def _matching_segments(
+    segments: list[JsonObject],
+    *,
+    segment_id: str | None,
+    segment_name: str | None,
+    query: str | None,
+) -> list[JsonObject]:
+    if segment_id:
+        return [segment for segment in segments if str(segment.get("id")) == segment_id]
+
+    if _looks_like_total_user_count(query, segment_name):
+        all_user_matches = [
+            segment
+            for segment in segments
+            if "all users" in _segment_name(segment).lower()
+        ]
+        if all_user_matches:
+            return all_user_matches
+
+    requested_name = (segment_name or "").strip().lower()
+    if requested_name:
+        exact = [segment for segment in segments if _segment_name(segment).lower() == requested_name]
+        if exact:
+            return exact
+        contains = [segment for segment in segments if requested_name in _segment_name(segment).lower()]
+        if contains:
+            return contains
+
+    query_words = _normalized_words(query)
+    if not query_words:
+        return []
+
+    scored: list[tuple[int, JsonObject]] = []
+    for segment in segments:
+        name_words = _normalized_words(_segment_name(segment))
+        score = len(query_words & name_words)
+        if score:
+            scored.append((score, segment))
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    best_score = scored[0][0] if scored else 0
+    return [segment for score, segment in scored if score == best_score]
+
+
 @mcp.tool()
 def braze_list_segment_sizes(
     length: int = 1,
@@ -382,6 +474,84 @@ def braze_list_segment_sizes(
         "largest": rows[0] if rows else None,
         "total_audiences_checked": len(rows),
         "truncated": len(segments) > len(rows),
+        "message": "success",
+    }
+
+
+@mcp.tool()
+def braze_count_users(
+    query: str | None = None,
+    segment_id: str | None = None,
+    segment_name: str | None = None,
+    length: int = 1,
+    ending_at: str | None = None,
+    max_segments: int = 50,
+) -> JsonObject:
+    """Count users through saved Braze segment analytics; use for total users or saved-segment filters."""
+    segment_response = braze_list_segments(sort_direction="asc")
+    segments = segment_response.get("segments") if isinstance(segment_response, dict) else None
+    if not isinstance(segments, list):
+        segments = []
+
+    limited_segments = [
+        segment for segment in segments[: max(0, max_segments)] if isinstance(segment, dict)
+    ]
+    matches = _matching_segments(
+        limited_segments,
+        segment_id=segment_id,
+        segment_name=segment_name,
+        query=query,
+    )
+
+    if not matches:
+        return {
+            "count": None,
+            "matched_segments": [],
+            "unsupported_filter": bool(query or segment_name),
+            "message": (
+                "No saved Braze segment matched this count request. Braze user counts are available "
+                "through segment analytics, so create or provide a saved segment for ad hoc filters "
+                "such as name, custom attribute, or event conditions."
+            ),
+            "total_segments_checked": len(limited_segments),
+            "truncated": len(segments) > len(limited_segments),
+        }
+
+    rows: list[JsonObject] = []
+    for segment in matches:
+        current_segment_id = str(segment.get("id"))
+        row: JsonObject = {
+            "id": current_segment_id,
+            "name": _segment_name(segment),
+            "analytics_tracking_enabled": segment.get("analytics_tracking_enabled"),
+        }
+        try:
+            analytics = braze_get_segment_analytics(
+                segment_id=current_segment_id,
+                length=length,
+                ending_at=ending_at,
+            )
+            row.update(_latest_segment_size(analytics))
+        except Exception as exc:
+            row.update({"size": None, "time": None, "error": str(exc)})
+        rows.append(row)
+
+    numeric_sizes = [row["size"] for row in rows if isinstance(row.get("size"), (int, float))]
+    count = sum(numeric_sizes) if numeric_sizes else None
+    multiple_matches = len(rows) > 1
+    return {
+        "count": count,
+        "count_source": "saved_segment_analytics",
+        "count_is_sum_of_matched_segments": multiple_matches,
+        "caveat": (
+            "Multiple saved segments matched; the count is the sum of segment sizes and may double-count "
+            "users who belong to more than one matched segment."
+            if multiple_matches
+            else None
+        ),
+        "matched_segments": rows,
+        "total_segments_checked": len(limited_segments),
+        "truncated": len(segments) > len(limited_segments),
         "message": "success",
     }
 
