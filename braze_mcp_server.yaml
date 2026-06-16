@@ -41,6 +41,11 @@ env:
     required: false
     sensitive: false
     description: Optional default app identifier for payloads that need app context.
+  - key: BRAZE_DEFAULT_EMAIL_FROM
+    name: Braze Default Email Sender
+    required: false
+    sensitive: false
+    description: Optional Braze-approved sender for proof/API-only email sends, for example Team <team@example.com>.
   - key: BRAZE_ALLOW_GENERIC_REQUEST
     name: Allow Generic Request
     required: false
@@ -121,9 +126,32 @@ toolPreview:
     description: Send an API-defined message. Requires confirmed=true after human approval.
     params:
       messages: Message payload object.
+      external_user_ids: External user IDs to send to.
+      user_aliases: User aliases to send to.
       recipients: Recipient list.
       audience: Audience object.
+      segment_id: Optional segment identifier.
       broadcast: Whether to broadcast to the full target audience.
+      override_frequency_capping: Whether to ignore frequency capping.
+      recipient_subscription_state: Recipient subscription state, one of opted_in, subscribed, or all.
+      confirmed: Must be true after approval.
+  - name: braze_send_proof_email
+    description: Send an API-only proof email to one email address, creating the email alias user first if needed. Requires confirmed=true after human approval.
+    params:
+      to_email: Recipient email address.
+      subject: Email subject line.
+      body: Valid HTML email body.
+      from_email: Optional Braze-approved sender; uses BRAZE_DEFAULT_EMAIL_FROM when omitted.
+      app_id: Optional Braze app ID; uses BRAZE_DEFAULT_APP_ID when omitted.
+      plaintext_body: Optional plaintext body.
+      preheader: Optional email preheader.
+      reply_to: Optional reply-to address.
+      campaign_id: Optional API campaign ID for tracking.
+      message_variation_id: Optional message variation ID.
+      send_id: Optional send ID.
+      alias_label: Alias label for email-based recipients.
+      create_user_first: Whether to create/update the email alias user before sending.
+      recipient_subscription_state: Recipient subscription state, one of opted_in, subscribed, or all.
       confirmed: Must be true after approval.
   - name: braze_users_track
     description: Track user attributes, events, or purchases. Requires confirmed=true after human approval.
@@ -131,4 +159,13 @@ toolPreview:
       attributes: Attribute objects.
       events: Event objects.
       purchases: Purchase objects.
+      confirmed: Must be true after approval.
+  - name: braze_create_user
+    description: Create or update a Braze user profile by email, using an alias when no external_id is provided. Requires confirmed=true after human approval.
+    params:
+      email: User email address.
+      external_id: Optional external user ID.
+      user_alias: Optional user alias object.
+      alias_label: Alias label to use when creating an email alias.
+      attributes: Optional additional user attributes.
       confirmed: Must be true after approval.

@@ -30,6 +30,10 @@ For ambiguous performance questions, do not answer by only listing objects. Use 
 
 For user-count questions, do not answer by only listing users, segments, or audiences. Use a count-oriented MCP tool when one exists. If the user asks how many users match an ad hoc filter such as a name, custom attribute, or event condition, first try the count tool with the requested filter text. If no saved segment matches, explain that Braze needs a saved segment or approved export workflow before that filtered count can be computed.
 
+For simple user creation requests, do not build raw `users/track` payloads by inventing null identifiers. Use the user-creation MCP tool when one exists. If the user has not provided an email address or another usable identifier required by the selected tool, ask a concise follow-up question instead of proposing a tool call.
+
+For proof sends to a single email address, prefer the proof-email MCP tool when one exists. This tool can create or update the email alias before sending, which is required when the recipient may not already exist in Braze. If required send inputs such as recipient email, subject, body, app ID, or sender are missing and no MCP environment default covers them, ask for the missing value before execution.
+
 ## Execution Boundary
 
 Allowed in this skill:
