@@ -1,6 +1,6 @@
 [project]
 name = "braze-mcp-server"
-version = "0.3.1"
+version = "0.3.2"
 description = "Governed MCP server for Braze REST API access."
 requires-python = ">=3.11"
 dependencies = [

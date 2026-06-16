@@ -86,6 +86,7 @@ Do not store production API keys in skill folders or committed files.
 - `braze_get_segment_analytics`
 - `braze_export_users_by_segment`
 - `braze_export_users_by_identifier`
+- `braze_create_user`
 - `braze_list_canvases`
 - `braze_get_canvas_details`
 - `braze_get_canvas_analytics`
@@ -94,6 +95,7 @@ Do not store production API keys in skill folders or committed files.
 - `braze_duplicate_campaign`
 - `braze_trigger_campaign`
 - `braze_send_messages`
+- `braze_send_proof_email`
 - `braze_users_track`
 - `braze_list_email_templates`
 - `braze_create_email_template`

@@ -43,14 +43,22 @@ def _clean_query(query: JsonObject | None) -> JsonObject:
     }
 
 
+def _clean_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: cleaned
+            for key, child in value.items()
+            if (cleaned := _clean_value(child)) is not None
+        }
+    if isinstance(value, list):
+        return [cleaned for child in value if (cleaned := _clean_value(child)) is not None]
+    if value == "":
+        return None
+    return value
+
+
 def _clean_body(body: Any | None) -> Any | None:
-    if not isinstance(body, dict):
-        return body
-    return {
-        key: value
-        for key, value in body.items()
-        if value is not None and value != ""
-    }
+    return _clean_value(body)
 
 
 def _build_url(path: str, query: JsonObject | None = None) -> str:
@@ -65,6 +73,32 @@ def _build_url(path: str, query: JsonObject | None = None) -> str:
 def _require_confirmation(confirmed: bool, reason: str) -> None:
     if not confirmed:
         raise ValueError(f"{reason} Re-run with confirmed=true after human approval.")
+
+
+def _require_non_empty(value: str | None, name: str) -> str:
+    cleaned = (value or "").strip()
+    if not cleaned:
+        raise ValueError(f"Missing required value: {name}.")
+    return cleaned
+
+
+def _email_alias(email: str, alias_label: str = "email") -> JsonObject:
+    cleaned_email = _require_non_empty(email, "email").lower()
+    return {
+        "alias_name": cleaned_email,
+        "alias_label": _require_non_empty(alias_label, "alias_label"),
+    }
+
+
+def _default_app_id(app_id: str | None) -> str:
+    return _require_non_empty(app_id or os.environ.get("BRAZE_DEFAULT_APP_ID"), "app_id")
+
+
+def _default_email_from(from_email: str | None) -> str:
+    return _require_non_empty(
+        from_email or os.environ.get("BRAZE_DEFAULT_EMAIL_FROM"),
+        "from_email. Provide a Braze-approved sender such as 'Team <team@example.com>' or configure BRAZE_DEFAULT_EMAIL_FROM.",
+    )
 
 
 def _braze_request(
@@ -114,7 +148,7 @@ def braze_health() -> JsonObject:
     return {
         "ok": True,
         "server": "braze-mcp-server",
-        "version": "0.3.1",
+        "version": "0.3.2",
         "rest_endpoint_configured": bool(os.environ.get("BRAZE_REST_ENDPOINT")),
         "api_key_configured": bool(os.environ.get("BRAZE_API_KEY")),
         "default_app_id_configured": bool(os.environ.get("BRAZE_DEFAULT_APP_ID")),
@@ -728,11 +762,16 @@ def braze_trigger_campaign(
 @mcp.tool()
 def braze_send_messages(
     messages: JsonObject,
+    external_user_ids: list[str] | None = None,
+    user_aliases: list[JsonObject] | None = None,
     recipients: list[JsonObject] | None = None,
     audience: JsonObject | None = None,
     broadcast: bool | None = None,
+    segment_id: str | None = None,
     campaign_id: str | None = None,
     send_id: str | None = None,
+    override_frequency_capping: bool | None = None,
+    recipient_subscription_state: Literal["opted_in", "subscribed", "all"] | None = None,
     confirmed: bool = False,
 ) -> Any:
     """Send API-defined Braze messages with /messages/send. Requires confirmed=true."""
@@ -742,13 +781,84 @@ def braze_send_messages(
         "/messages/send",
         body={
             "messages": messages,
+            "external_user_ids": external_user_ids,
+            "user_aliases": user_aliases,
             "recipients": recipients,
             "audience": audience,
             "broadcast": broadcast,
+            "segment_id": segment_id,
             "campaign_id": campaign_id,
             "send_id": send_id,
+            "override_frequency_capping": override_frequency_capping,
+            "recipient_subscription_state": recipient_subscription_state,
         },
     )
+
+
+@mcp.tool()
+def braze_send_proof_email(
+    to_email: str,
+    subject: str,
+    body: str,
+    from_email: str | None = None,
+    app_id: str | None = None,
+    plaintext_body: str | None = None,
+    preheader: str | None = None,
+    reply_to: str | None = None,
+    campaign_id: str | None = None,
+    message_variation_id: str | None = None,
+    send_id: str | None = None,
+    alias_label: str = "email",
+    create_user_first: bool = True,
+    recipient_subscription_state: Literal["opted_in", "subscribed", "all"] = "all",
+    confirmed: bool = False,
+) -> JsonObject:
+    """Send an API-only proof email to an email alias, creating the alias-only user first if needed."""
+    _require_confirmation(confirmed, "Sending a Braze proof email can message a user.")
+    recipient_alias = _email_alias(to_email, alias_label)
+    create_result: Any | None = None
+    if create_user_first:
+        create_result = braze_create_user(
+            email=to_email,
+            user_alias=recipient_alias,
+            confirmed=True,
+        )
+
+    email_message: JsonObject = {
+        "app_id": _default_app_id(app_id),
+        "from": _default_email_from(from_email),
+        "subject": _require_non_empty(subject, "subject"),
+        "body": _require_non_empty(body, "body"),
+        "plaintext_body": plaintext_body,
+        "preheader": preheader,
+        "reply_to": reply_to,
+    }
+    if message_variation_id:
+        email_message["message_variation_id"] = message_variation_id
+
+    send_result = braze_send_messages(
+        messages={"email": email_message},
+        user_aliases=[recipient_alias],
+        campaign_id=campaign_id,
+        send_id=send_id,
+        recipient_subscription_state=recipient_subscription_state,
+        confirmed=True,
+    )
+    return {
+        "message": "success",
+        "to_email": to_email,
+        "user_alias": recipient_alias,
+        "created_or_updated_user_first": create_user_first,
+        "create_result": create_result,
+        "send_result": send_result,
+        "caveat": (
+            "Braze notes that /users/track processing is asynchronous. If this was a brand-new user, "
+            "an immediate API-only send can race profile creation; retry after propagation or use an "
+            "API-triggered campaign/Canvas for guaranteed create-and-send behavior."
+            if create_user_first
+            else None
+        ),
+    }
 
 
 @mcp.tool()
@@ -771,6 +881,31 @@ def braze_users_track(
             "partner": partner,
         },
     )
+
+
+@mcp.tool()
+def braze_create_user(
+    email: str,
+    external_id: str | None = None,
+    user_alias: JsonObject | None = None,
+    alias_label: str = "email",
+    attributes: JsonObject | None = None,
+    confirmed: bool = False,
+) -> Any:
+    """Create or update a Braze user profile by email, using an alias when no external_id is provided."""
+    _require_confirmation(confirmed, "Creating or updating a Braze user mutates user profile data.")
+    cleaned_email = _require_non_empty(email, "email")
+    attribute: JsonObject = {
+        **(attributes or {}),
+        "email": cleaned_email,
+    }
+    if external_id:
+        attribute["external_id"] = external_id
+    else:
+        attribute["_update_existing_only"] = False
+        attribute["user_alias"] = user_alias or _email_alias(cleaned_email, alias_label)
+
+    return braze_users_track(attributes=[attribute], confirmed=True)
 
 
 @mcp.tool()

@@ -23,8 +23,10 @@ Use the smallest named MCP tool that matches the task. Avoid generic REST calls 
 | Duplicate Canvas | `braze_duplicate_canvas` | Requires approval and `confirmed: true`. |
 | Duplicate campaign | `braze_duplicate_campaign` | Requires approval and `confirmed: true`. |
 | Trigger API campaign | `braze_trigger_campaign` | Requires approval and `confirmed: true`; preserve dashboard campaign content. |
-| Send API-defined message | `braze_send_messages` | Requires approval and `confirmed: true`; inspect audience and content carefully. |
-| Track user attributes/events/purchases | `braze_users_track` | Requires approval and `confirmed: true`; validate payload first. |
+| Send proof email | `braze_send_proof_email` | Requires approval and `confirmed: true`. Use for test/proof sends to a single email address, especially when the recipient may not already exist in Braze. Requires an email recipient, subject, body, app ID, and Braze-approved sender; app ID and sender may come from MCP environment defaults. |
+| Send API-defined message | `braze_send_messages` | Requires approval and `confirmed: true`; inspect audience and content carefully. Recipients must already exist for API-only sends. |
+| Create or update user by email | `braze_create_user` | Requires approval and `confirmed: true`. Use when the user asks to create a Braze user/profile from an email address. If no external ID is provided, this creates/updates an alias-only profile using the email alias so later proof sends can target it. Ask for the email address if missing. |
+| Track user attributes/events/purchases | `braze_users_track` | Requires approval and `confirmed: true`; validate payload first. Prefer `braze_create_user` for simple "create user by email" requests. |
 | List email templates | `braze_list_email_templates` | Safe discovery action. |
 | Create email template | `braze_create_email_template` | Requires approval and `confirmed: true`. |
 | List scheduled broadcasts | `braze_list_scheduled_broadcasts` | Safe read-only schedule check. |
