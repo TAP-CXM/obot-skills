@@ -1,0 +1,228 @@
+{
+  "overview": {
+    "campaign_name": "TAP London Summer Sale",
+    "internal_campaign_code": "TAP026",
+    "channels": ["Email", "SMS", "WhatsApp"],
+    "primary_channel": "Email",
+    "secondary_channel": "SMS",
+    "tertiary_channel": "WhatsApp"
+  },
+  "summary": {
+    "campaign_template": "Seasonal Promotion",
+    "campaign_nature": "Promotional",
+    "campaign_frequency": "Weekly",
+    "campaign_plan": "Automated",
+    "plan_mode": "Triggered",
+    "program_level_1": "CRM",
+    "program_level_2": "Promotions",
+    "program_level_3": "Seasonal",
+    "program_level_4": "Summer",
+    "start_date": "2026-07-01",
+    "end_date": "2026-07-07",
+    "description": "Drive conversion for the summer sale across key owned channels with a coordinated multi-touch sequence.",
+    "business_context": "Summer sale launch with limited-time discount and a curated set of hero products.",
+    "why_now": "The sale window is short and requires rapid awareness plus urgency near expiry.",
+    "related_initiative": "Summer Sale 2026",
+    "primary_objective": "Increase online revenue from active customers during the sale window.",
+    "secondary_objective": "Reactivate recent browsers who did not purchase in the last 30 days.",
+    "offer": "20% off selected categories with a countdown-led urgency message.",
+    "primary_cta": "Shop the summer sale",
+    "single_minded_message": "The best summer offers are live now and available for a limited time.",
+    "hypothesis": "A sequenced email plus mobile reminder journey will improve conversion versus email alone.",
+    "kpis": ["Delivered", "Open rate", "CTR", "Conversion rate", "Revenue per recipient"],
+    "expected_open_rate": "32%",
+    "expected_ctor": "18%",
+    "expected_conversion_rate": "4.5%",
+    "expected_ctr_delivered": "5.8%",
+    "test_plan": "Test urgency-led versus value-led subject lines on the email launch touch.",
+    "dependencies": ["Final product feed", "Approved landing page", "Audience refresh"],
+    "risks": ["Offer code mismatch", "Inventory availability on hero SKUs"],
+    "compliance_considerations": ["Use consented mobile audiences only", "Respect quiet hours for SMS and WhatsApp"],
+    "assumptions": ["WhatsApp template approval is available before launch"],
+    "open_questions": ["Should non-converters receive a final reminder on day 6?"]
+  },
+  "targeting": {
+    "workflow_name": "TAP026_SummerSale_WF1",
+    "workflow_internal_name": "TAP026_WF1",
+    "audience_description": "- Active customers with email consent\n- Recent browsers with no purchase in the last 30 days",
+    "audience_rules": "- emailConsent = 'Y' AND lastPurchaseDays > 30\n- OR mobileOptIn = 'Y' AND recentBrowseFlag = 'Y'",
+    "inclusions": ["Email consented active customers", "Recent browsers", "UK market"],
+    "exclusions": ["Open customer service cases", "Recent purchasers within 7 days", "Suppressed VIP cohort"],
+    "suppressions": ["Global unsubscribes", "Hard bounces", "Recent converters after purchase event"],
+    "control_group": {
+      "campaign_enabled": true,
+      "campaign_size": "10%",
+      "universal_enabled": false,
+      "description": "Hold out 10% of the eligible audience from all sale communications."
+    },
+    "deliveries": [
+      {
+        "label": "TAP026_Email_Launch",
+        "code": "DLV026A",
+        "description": "Primary launch email",
+        "channel": "Email",
+        "nature": "Promotional",
+        "launch_date": "2026-07-01 09:00",
+        "quarantine_period": "2 days",
+        "throttle_rate": "Full send",
+        "send_sequence": "1"
+      },
+      {
+        "label": "TAP026_SMS_Reminder",
+        "code": "DLV026B",
+        "description": "Reminder SMS for non-converters",
+        "channel": "SMS",
+        "nature": "Reminder",
+        "launch_date": "2026-07-05 16:00",
+        "quarantine_period": "1 day",
+        "throttle_rate": "20k/hour",
+        "send_sequence": "2"
+      }
+    ],
+    "automated_quarantine_days": "2",
+    "automated_priority_description": "High priority during sale week.",
+    "timing_rules": "Launch on day 1, reminder on day 5, optional final nudge on day 6.",
+    "trigger_logic": "Scheduled journey anchored to sale launch date.",
+    "operational_rules": "Exclude customers once a purchase is recorded after the launch touch.",
+    "segments": [
+      {
+        "code": "SEG1",
+        "rule": "VIP = 'Y'",
+        "treatment": "Use premium hero creative and early-access framing.",
+        "delivery_label": "TAP026_Email_Launch"
+      },
+      {
+        "code": "SEG2",
+        "rule": "recentBrowseFlag = 'Y'",
+        "treatment": "Use browse-based dynamic product recommendations.",
+        "delivery_label": "TAP026_SMS_Reminder"
+      }
+    ],
+    "proof_list": [
+      {
+        "first_name": "Harry",
+        "last_name": "Tennant",
+        "email": "harry@example.com",
+        "version_to_send": "All"
+      },
+      {
+        "first_name": "Jayanthi",
+        "last_name": "Suhumar",
+        "email": "jayanthi@example.com",
+        "version_to_send": "All"
+      },
+      {
+        "first_name": "Tobi",
+        "last_name": "Awosoji",
+        "email": "tobi@example.com",
+        "version_to_send": "All"
+      }
+    ]
+  },
+  "delivery": {
+    "delivery_label": "TAP026_SummerSale_Email",
+    "delivery_code": "TAP026",
+    "subject_line": "Summer sale starts now: save 20% today",
+    "paragraph_1_summary": "Introduce the sale and hero categories.",
+    "paragraph_2_summary": "Highlight urgency and expiry window.",
+    "paragraph_3_summary": "Reinforce trust, convenience, and best sellers.",
+    "additional_content": "Include recommendation block for recent browsers.",
+    "content_summary": "Modular promotional email with urgency-led CTA plus recommendation block.",
+    "html_supplied": true,
+    "include_offer_space": true,
+    "offer_space_notes": "Reserve offer module near the top of the email.",
+    "tone_and_personalization": "Confident and upbeat, with first-name personalization and browse-led recommendations where available.",
+    "asset_requirements": ["Hero banner", "Product recommendation feed", "Sale landing page URL"],
+    "localization_notes": "English only for initial launch.",
+    "qa_checkpoints": ["Proof all links", "Check fallback copy", "Validate suppression rules"],
+    "personalization_fields": [
+      {
+        "type": "P",
+        "description": "First name",
+        "example_value": "Alex",
+        "field_name": "firstName",
+        "default_value_or_skip_condition": "Use 'there' when blank"
+      },
+      {
+        "type": "DC",
+        "description": "Recommended product block",
+        "example_value": "Top 3 viewed categories",
+        "field_name": "browseRecommendations",
+        "default_value_or_skip_condition": "Suppress module when no eligible products"
+      }
+    ],
+    "content_modules": [
+      {
+        "module": "Subject Line",
+        "audience": "All",
+        "rule": "Default",
+        "image": "",
+        "copy": "Summer sale starts now: save 20% today",
+        "link_url": "",
+        "link_label": "",
+        "notes": "Test against value-led alternative."
+      },
+      {
+        "module": "Pre-Header",
+        "audience": "All",
+        "rule": "Default",
+        "image": "",
+        "copy": "Limited-time savings across key summer categories.",
+        "link_url": "",
+        "link_label": "",
+        "notes": ""
+      },
+      {
+        "module": "Banner",
+        "audience": "All",
+        "rule": "Default",
+        "image": "summer-sale-hero.jpg",
+        "copy": "Shop our best summer offers before they end.",
+        "link_url": "https://example.com/summer-sale",
+        "link_label": "Shop now",
+        "notes": "Use countdown creative if available."
+      }
+    ]
+  },
+  "governance": {
+    "owner": "Dirk Wybede Jong",
+    "document_date": "2026-06-17",
+    "current_version": "v0.1",
+    "delivery_outline_name": "DVO026_SummerSale",
+    "delivery_outline_internal_name": "DVO026",
+    "estimated_provisional_cost": "1500",
+    "documents": [
+      {
+        "name": "summer-sale-brief.md",
+        "nature": "Campaign Brief",
+        "last_modified": "2026-06-17 10:00"
+      },
+      {
+        "name": "summer-sale-brd.md",
+        "nature": "BRD",
+        "last_modified": "2026-06-17 10:00"
+      }
+    ],
+    "version_history": [
+      {
+        "version_no": "1",
+        "author": "Dirk Wybede Jong",
+        "date": "2026-06-17",
+        "comments": "Initial draft"
+      },
+      {
+        "version_no": "2",
+        "author": "Dirk Wybede Jong",
+        "date": "2026-06-18",
+        "comments": "Updated after stakeholder review"
+      }
+    ],
+    "approvals": [
+      {
+        "name": "Campaign Lead",
+        "date": "Pending",
+        "comments": "Awaiting approval"
+      }
+    ]
+  }
+}

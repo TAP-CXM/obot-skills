@@ -1,0 +1,4 @@
+interface:
+  display_name: "Outbound Brief"
+  short_description: "Create campaign briefs, BRDs, and workbooks"
+  default_prompt: "Use $outbound-campaign-brief to create an outbound marketing campaign brief and, if needed, a filled workbook and BRD for email, SMS, WhatsApp, or other owned channels."
