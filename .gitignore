@@ -1,3 +1,5 @@
 .DS_Store
 build/
 *.egg-info/
+outputs/
+outputs-test/
