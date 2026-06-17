@@ -135,7 +135,7 @@ When the user asks for execution-ready artifacts, produce both of these from the
 
 If the user supplies a campaign workbook template, use that exact file. Otherwise use the bundled asset:
 
-- [TAP London - Campaign Brief Template.xlsx](./assets/TAP%20London%20-%20Campaign%20Brief%20Template.xlsx)
+- [TAP CXM - Campaign Brief Template.xlsx](./assets/TAP%20CXM%20-%20Campaign%20Brief%20Template.xlsx)
 
 Read [workbook-mapping.md](./references/workbook-mapping.md) before filling the workbook. It maps the four tabs and expected content:
 

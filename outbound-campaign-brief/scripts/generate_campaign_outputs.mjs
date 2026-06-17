@@ -364,7 +364,7 @@ async function main() {
   const slug = slugify(input.overview?.campaign_name || input.overview?.internal_campaign_code || "campaign");
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const templatePath = path.resolve(
-    args.template || path.join(scriptDir, "..", "assets", "TAP London - Campaign Brief Template.xlsx"),
+    args.template || path.join(scriptDir, "..", "assets", "TAP CXM - Campaign Brief Template.xlsx"),
   );
 
   const workbookOut = path.join(outDir, `${slug}-campaign-brief.xlsx`);
