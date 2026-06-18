@@ -1,79 +1,69 @@
 # Brief Template
 
-Use this structure by default. Trim sections that are not relevant, but do not remove strategic essentials.
+Use this structure by default for an Outbound Campaign Brief. Trim irrelevant fields only when they clearly do not apply, but keep the six core areas.
 
-## Campaign Brief
+## Outbound Campaign Brief
 
-### 1. Campaign Summary
+### 1. General
 
 - Campaign name:
-- Campaign type:
-- Business context:
-
-### 2. Objective
-
-- Primary objective:
-- Secondary objective:
-- Why this campaign matters now:
-
-### 3. Audience
-
-- Core audience:
-- Eligibility or segment logic:
-- Exclusions or suppressions:
-- Customer insight or tension:
-
-### 4. Offer and CTA
-
-- Offer:
-- Primary CTA:
-- Secondary CTA:
-- Expiry or urgency:
-
-### 5. Message Strategy
-
-- Single-minded proposition:
-- Key supporting points:
-- Tone:
-- Personalization:
-
-### 6. Channel Plan
-
-For each channel include:
-
-- Role in the journey
-- Message focus
-- Send timing
-- Dependencies or constraints
-
-### 7. Journey or Timing
-
-- Launch date or trigger:
-- Sequence:
-- Frequency guardrails:
-- Follow-up logic:
-
-### 8. Measurement
-
+- Campaign template:
+- Channel or channel mix:
 - Primary KPI:
 - Secondary KPIs:
-- Test plan:
-- Success threshold:
+- Source documents and versions:
+- Document owner:
+- Current brief version:
 
-### 9. Production Requirements
+### 2. Data
 
-- Required assets:
-- Landing pages or destinations:
-- Data or audience dependencies:
-- Tracking requirements:
+- Target groups, audiences, or segments:
+- Segment codes:
+- Eligibility or segment logic:
+- Exclusions or suppressions:
+- Treatment by segment:
+- Control group:
+- Data dependencies:
+- Data approvers:
 
-### 10. Risks and Approvals
+### 3. Content
 
-- Compliance considerations:
-- Operational risks:
-- Required approvers:
+- Subject line:
+- Email or message content:
+- Content template:
+- Dynamic content rules:
+- Personalization fields:
+- Defaults and fallback behavior:
+- Links, CTA labels, and destinations:
 
-### 11. Assumptions and Open Questions
+### 4. Design
 
+- Design source:
+- Figma URL, file, or frame:
+- Figma preview image:
+- Supplied HTML:
+- Campaign or content template:
+- Image or asset requirements:
+- Creative dependencies and open items:
+
+### 5. QA
+
+- Proof recipients:
+- QA checklist:
+- Proof-send status:
+- Data QA checks:
+- Content QA checks:
+- Design/rendering QA checks:
+- Approval requirements:
+
+### 6. Finalize
+
+- Campaign summary:
+- Objective and success metrics:
+- Offer and CTA:
+- Message strategy:
+- Channel plan:
+- Journey, launch timing, or trigger logic:
+- Risks and dependencies:
 - Assumptions:
 - Open questions:

@@ -61,6 +61,8 @@ function buildBrdMarkdown(input) {
   const summary = input.summary || {};
   const targeting = input.targeting || {};
   const delivery = input.delivery || {};
+  const design = input.design || {};
+  const qa = input.qa || {};
   const governance = input.governance || {};
 
   const section = (title) => {
@@ -128,38 +130,57 @@ function buildBrdMarkdown(input) {
 
   section("7. Content and Creative Requirements");
   bullets([
+    ["Content template", delivery.content_template],
     ["Required modules or content blocks", joinLines(asList(delivery.content_modules).map((item) => item.module))],
     ["Subject line or headline direction", delivery.subject_line],
-    ["Asset requirements", joinLines(delivery.asset_requirements)],
+    ["Asset requirements", joinLines([...asList(delivery.asset_requirements), ...asList(design.asset_requirements)])],
     ["Landing-page or destination requirements", joinLines(asList(delivery.content_modules).map((item) => item.link_url).filter(Boolean))],
     ["Localization or variant needs", delivery.localization_notes],
   ]);
 
   section("8. Data and Personalization Requirements");
   bullets([
+    ["Segment codes", joinLines(asList(targeting.segment_codes).map((item) => item.code || item))],
+    ["Treatment by segment", joinLines(asList(targeting.treatments).map((item) => `${item.segment_code || item.segment || ""}: ${item.treatment || item.content || ""}`.trim()))],
     ["Required data fields", joinLines(asList(delivery.personalization_fields).map((item) => item.description))],
-    ["Dynamic content logic", joinLines(asList(delivery.content_modules).map((item) => item.rule))],
+    ["Dynamic content logic", joinLines([...asList(delivery.dynamic_content_rules), ...asList(delivery.content_modules).map((item) => item.rule)])],
     ["Default values", joinLines(asList(delivery.personalization_fields).map((item) => item.default_value_or_skip_condition))],
     ["Fallback or skip conditions", joinLines(asList(delivery.personalization_fields).map((item) => item.default_value_or_skip_condition))],
   ]);
 
-  section("9. Testing and QA");
+  section("9. Design");
   bullets([
-    ["Proof or UAT recipients", joinLines(asList(targeting.proof_list).map((item) => `${item.first_name || ""} ${item.last_name || ""} <${item.email || ""}>`.trim()))],
+    ["Design source", design.source],
+    ["Figma reference", firstNonEmpty(design.figma_url, design.figma_file, design.figma_frame)],
+    ["Figma version", design.figma_version],
+    ["Preview image", firstNonEmpty(design.preview_image_name, design.preview_image_url)],
+    ["Supplied HTML", design.html_summary || boolToYesNo(design.html_supplied)],
+    ["Template source", design.template_source],
+    ["Creative dependencies", joinLines(design.dependencies)],
+  ]);
+
+  section("10. Testing and QA");
+  bullets([
+    ["Proof or UAT recipients", joinLines(asList(qa.proof_list ?? targeting.proof_list).map((item) => `${item.first_name || item.name || ""} ${item.last_name || ""} <${item.email || ""}>`.trim()))],
     ["Variants and test plan", summary.test_plan],
-    ["QA checkpoints", joinLines(delivery.qa_checkpoints)],
+    ["QA checkpoints", joinLines(qa.qa_checkpoints ?? delivery.qa_checkpoints)],
+    ["Data QA checks", joinLines(qa.data_checks)],
+    ["Content QA checks", joinLines(qa.content_checks)],
+    ["Design QA checks", joinLines(qa.design_checks)],
+    ["Proof-send status", qa.proof_send_status],
     ["Dependencies before launch", joinLines(summary.dependencies)],
   ]);
 
-  section("10. Risks, Dependencies, and Approvals");
+  section("11. Risks, Dependencies, and Approvals");
   bullets([
     ["Risks", joinLines(summary.risks)],
     ["Compliance considerations", joinLines(summary.compliance_considerations)],
     ["Dependencies", joinLines(summary.dependencies)],
-    ["Required approvers", joinLines(asList(governance.approvals).map((item) => item.name))],
+    ["Data approvers", joinLines(asList(targeting.data_approvers).map((item) => `${item.name || ""} <${item.email || ""}>`.trim()))],
+    ["Required approvers", joinLines(asList(governance.approvals).map((item) => `${item.name || ""} <${item.email || ""}>`.trim()))],
   ]);
 
-  section("11. Assumptions and Open Questions");
+  section("12. Assumptions and Open Questions");
   bullets([
     ["Assumptions", joinLines(summary.assumptions)],
     ["Open questions", joinLines(summary.open_questions)],
@@ -197,6 +218,8 @@ async function populateWorkbook(workbookPath, input, outPath) {
   const summary = input.summary || {};
   const targeting = input.targeting || {};
   const delivery = input.delivery || {};
+  const design = input.design || {};
+  const qa = input.qa || {};
   const governance = input.governance || {};
 
   setCell(summarySheet, "M3", overview.campaign_name || "");
@@ -206,7 +229,7 @@ async function populateWorkbook(workbookPath, input, outPath) {
   setCell(summarySheet, "D8", overview.secondary_channel);
   setCell(summarySheet, "E8", overview.tertiary_channel);
   setCell(summarySheet, "G8", summary.campaign_plan);
-  setCell(summarySheet, "M6", summary.campaign_template);
+  setCell(summarySheet, "M6", overview.campaign_template || summary.campaign_template);
   setCell(summarySheet, "M7", summary.campaign_nature);
   setCell(summarySheet, "P7", summary.campaign_frequency);
   setCell(summarySheet, "C9", formatDate(summary.start_date));
@@ -227,7 +250,7 @@ async function populateWorkbook(workbookPath, input, outPath) {
   setCell(summarySheet, "J22", summary.description);
   setCell(summarySheet, "P21", governance.estimated_provisional_cost);
 
-  const documents = asList(governance.documents).slice(0, 2);
+  const documents = asList(governance.documents).length ? asList(governance.documents).slice(0, 2) : asList(overview.source_documents).slice(0, 2);
   while (documents.length < 2) documents.push({});
   [24, 25].forEach((row, index) => {
     const item = documents[index];
@@ -286,21 +309,26 @@ async function populateWorkbook(workbookPath, input, outPath) {
   setCell(tdSheet, "H34", targeting.automated_priority_description);
 
   const segments = asList(targeting.segments).slice(0, 2);
+  const segmentCodes = asList(targeting.segment_codes);
+  const treatments = asList(targeting.treatments);
   while (segments.length < 2) segments.push({});
   [38, 39].forEach((row, index) => {
     const item = segments[index];
-    setCell(tdSheet, `B${row}`, item.code || `SEG${index + 1}`);
-    setCell(tdSheet, `D${row}`, item.rule);
-    setCell(tdSheet, `J${row}`, item.treatment);
+    const segmentCode = segmentCodes[index];
+    const treatment = treatments[index];
+    setCell(tdSheet, `B${row}`, item.code || segmentCode?.code || segmentCode || `SEG${index + 1}`);
+    setCell(tdSheet, `D${row}`, item.rule || segmentCode?.rule || treatment?.rule);
+    setCell(tdSheet, `J${row}`, item.treatment || treatment?.treatment || treatment?.content);
     setCell(tdSheet, `O${row}`, item.delivery_label);
   });
 
-  const proofs = asList(targeting.proof_list).slice(0, 3);
+  const proofs = asList(qa.proof_list ?? targeting.proof_list).slice(0, 3);
   while (proofs.length < 3) proofs.push({});
   [43, 44, 45].forEach((row, index) => {
     const item = proofs[index];
-    setCell(tdSheet, `B${row}`, item.first_name);
-    setCell(tdSheet, `E${row}`, item.last_name);
+    const nameParts = String(item.name || "").split(/\s+/);
+    setCell(tdSheet, `B${row}`, item.first_name || nameParts[0]);
+    setCell(tdSheet, `E${row}`, item.last_name || nameParts.slice(1).join(" "));
     setCell(tdSheet, `H${row}`, item.email);
     setCell(tdSheet, `N${row}`, item.version_to_send);
   });
@@ -309,15 +337,20 @@ async function populateWorkbook(workbookPath, input, outPath) {
   setCell(deliverySheet, "M6", delivery.delivery_code);
   setCell(deliverySheet, "B9", joinLines([
     delivery.subject_line,
+    delivery.message_body,
     delivery.paragraph_1_summary,
     delivery.paragraph_2_summary,
     delivery.paragraph_3_summary,
     delivery.additional_content,
+    `Template: ${delivery.content_template || ""}`.trim(),
+    `Dynamic content: ${joinLines(delivery.dynamic_content_rules)}`.trim(),
+    `Design source: ${design.source || ""}`.trim(),
+    `Figma: ${firstNonEmpty(design.figma_url, design.figma_file, design.figma_frame)}`.trim(),
   ].filter(Boolean)));
-  setCell(deliverySheet, "O9", delivery.content_summary);
-  setCell(deliverySheet, "J10", boolToYesNo(delivery.html_supplied));
+  setCell(deliverySheet, "O9", joinLines([delivery.content_summary, design.template_source, design.preview_image_name || design.preview_image_url].filter(Boolean)));
+  setCell(deliverySheet, "J10", boolToYesNo(delivery.html_supplied || design.html_supplied));
   setCell(deliverySheet, "L10", boolToYesNo(delivery.include_offer_space));
-  setCell(deliverySheet, "O10", delivery.offer_space_notes);
+  setCell(deliverySheet, "O10", joinLines([delivery.offer_space_notes, design.html_summary, joinLines(design.open_items)].filter(Boolean)));
 
   const personalizationFields = asList(delivery.personalization_fields).slice(0, 7);
   while (personalizationFields.length < 7) personalizationFields.push({});
@@ -342,6 +375,16 @@ async function populateWorkbook(workbookPath, input, outPath) {
     setCell(deliverySheet, `P${row}`, item.link_url);
     setCell(deliverySheet, `T${row}`, item.link_label);
     setCell(deliverySheet, `W${row}`, item.notes);
+  });
+
+  const qaChecks = [
+    ...asList(qa.qa_checkpoints ?? delivery.qa_checkpoints),
+    ...asList(qa.data_checks),
+    ...asList(qa.content_checks),
+    ...asList(qa.design_checks),
+  ];
+  qaChecks.slice(0, 3).forEach((item, index) => {
+    setCell(deliverySheet, `B${41 + index}`, item);
   });
 
   ensureReferenceValues(referenceSheet, input);
@@ -458,19 +501,33 @@ function campaignInputFromBrief(content) {
   const metrics = splitList(firstNonEmpty(getField(fields, "Success", "Success metrics", "KPI", "KPIs"), sectionText(content, "Objective and success metrics")));
   const assumptions = splitList(sectionText(content, "Open questions and assumptions", "Assumptions"));
   const questions = splitList(sectionText(content, "Open questions", "Questions"));
+  const generalText = sectionText(content, "General");
+  const dataText = sectionText(content, "Data");
+  const contentText = sectionText(content, "Content");
+  const designText = sectionText(content, "Design");
+  const qaText = sectionText(content, "QA");
   const internalCode = slugify(title).toUpperCase().replace(/-/g, "_");
+  const proofRecipients = splitList(firstNonEmpty(getField(fields, "Proof recipients", "Proof addresses"), qaText))
+    .map((item) => parsePersonEmail(item))
+    .filter((item) => item.name || item.email);
+  const dataApprovers = splitList(getField(fields, "Data approvers", "Approvers"))
+    .map((item) => parsePersonEmail(item))
+    .filter((item) => item.name || item.email);
+  const dynamicRules = splitList(firstNonEmpty(getField(fields, "Dynamic content rules"), contentText));
 
   return {
     overview: {
       campaign_name: title,
       internal_campaign_code: internalCode,
+      campaign_template: firstNonEmpty(getField(fields, "Campaign template"), "Outbound campaign brief"),
       channels,
       primary_channel: primaryChannel,
       secondary_channel: channels[1] || "",
       tertiary_channel: channels[2] || "",
+      source_documents: splitList(getField(fields, "Source documents", "Source documents and versions", "Documents")),
     },
     summary: {
-      campaign_template: "Outbound campaign brief",
+      campaign_template: firstNonEmpty(getField(fields, "Campaign template"), "Outbound campaign brief"),
       campaign_nature: inferCampaignNature(content),
       campaign_frequency: "One-off",
       campaign_plan: firstNonEmpty(getField(fields, "Campaign plan"), "CRM outbound campaign"),
@@ -531,30 +588,35 @@ function campaignInputFromBrief(content) {
       operational_rules: "",
       segments: [
         {
-          code: "SEG1",
-          rule: audience,
-          treatment: message,
+          code: firstNonEmpty(getField(fields, "Segment codes", "Segment code"), "SEG1"),
+          rule: firstNonEmpty(getField(fields, "Eligibility or segment logic", "Segment logic"), audience),
+          treatment: firstNonEmpty(getField(fields, "Treatment by segment", "Treatment"), message),
           delivery_label: `${primaryChannel} delivery`,
         },
       ],
-      proof_list: [],
+      segment_codes: splitList(getField(fields, "Segment codes", "Segment code")).map((item, index) => ({ code: item || `SEG${index + 1}` })),
+      treatments: splitList(getField(fields, "Treatment by segment", "Treatment")).map((item) => ({ treatment: item })),
+      data_approvers: dataApprovers,
+      proof_list: proofRecipients,
     },
     delivery: {
       delivery_label: `${primaryChannel} delivery`,
       delivery_code: `${internalCode}_${primaryChannel.toUpperCase()}`,
       subject_line: getField(fields, "Subject line", "Headline"),
+      message_body: firstNonEmpty(getField(fields, "Email or message content", "Email content", "Message content"), contentText),
+      content_template: getField(fields, "Content template", "Template"),
       paragraph_1_summary: message,
       paragraph_2_summary: offer,
       paragraph_3_summary: cta,
       additional_content: firstNonEmpty(getField(fields, "Creative requirements"), sectionText(content, "Creative and production requirements")),
       content_summary: message,
-      html_supplied: false,
+      html_supplied: /html supplied:\s*(yes|true)/i.test(content),
       include_offer_space: Boolean(offer),
       offer_space_notes: offer,
+      dynamic_content_rules: dynamicRules,
       tone_and_personalization: getField(fields, "Tone", "Personalization"),
       asset_requirements: splitList(sectionText(content, "Creative and production requirements", "Asset requirements")),
       localization_notes: getField(fields, "Localization"),
-      qa_checkpoints: ["Confirm audience counts", "Validate personalization fallback", "Send and approve proof"],
       personalization_fields: [],
       content_modules: [
         {
@@ -569,6 +631,31 @@ function campaignInputFromBrief(content) {
         },
       ],
     },
+    design: {
+      source: getField(fields, "Design source"),
+      figma_url: getField(fields, "Figma URL", "Figma reference", "Figma"),
+      figma_file: getField(fields, "Figma file"),
+      figma_frame: getField(fields, "Figma frame"),
+      figma_version: getField(fields, "Figma version"),
+      preview_image_name: getField(fields, "Figma preview image", "Preview image"),
+      preview_image_url: getField(fields, "Preview image URL"),
+      html_supplied: /html supplied:\s*(yes|true)/i.test(content),
+      html_summary: getField(fields, "Supplied HTML", "HTML supplied"),
+      template_source: getField(fields, "Campaign or content template", "Template source"),
+      asset_requirements: splitList(firstNonEmpty(getField(fields, "Image or asset requirements"), designText)),
+      dependencies: splitList(getField(fields, "Creative dependencies", "Design dependencies")),
+      open_items: splitList(getField(fields, "Creative dependencies and open items", "Open items")),
+    },
+    qa: {
+      proof_list: proofRecipients,
+      qa_checkpoints: splitList(firstNonEmpty(getField(fields, "QA checklist"), qaText)),
+      data_checks: splitList(getField(fields, "Data QA checks")),
+      content_checks: splitList(getField(fields, "Content QA checks")),
+      design_checks: splitList(getField(fields, "Design/rendering QA checks", "Design QA checks")),
+      proof_send_status: getField(fields, "Proof-send status", "Proof send status"),
+      proof_send_notes: getField(fields, "Proof-send notes"),
+      approval_requirements: splitList(getField(fields, "Approval requirements")),
+    },
     governance: {
       owner: getField(fields, "Owner"),
       document_date: new Date().toISOString().slice(0, 10),
@@ -576,10 +663,23 @@ function campaignInputFromBrief(content) {
       delivery_outline_name: `${title} delivery outline`,
       delivery_outline_internal_name: internalCode,
       estimated_provisional_cost: "",
-      documents: [{ name: "Campaign brief", nature: "Brief", last_modified: new Date().toISOString().slice(0, 10) }],
+      documents: splitList(getField(fields, "Source documents", "Source documents and versions", "Documents")).map((item) => ({ name: item, nature: "Source document", last_modified: "" })).concat([{ name: "Campaign brief", nature: "Brief", last_modified: new Date().toISOString().slice(0, 10) }]).slice(0, 4),
       version_history: [{ version_no: "0.1", author: "Outbound Campaign Brief skill", date: new Date().toISOString().slice(0, 10), comments: "Draft generated from latest brief" }],
       approvals: [{ name: "Pending approval", date: "", comments: "" }],
     },
+  };
+}
+
+function parsePersonEmail(value) {
+  const text = String(value || "").trim();
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || "";
+  const name = text.replace(email, "").replace(/[<>(),]/g, " ").replace(/\s+/g, " ").trim();
+  const [first_name = "", ...rest] = name.split(" ").filter(Boolean);
+  return {
+    name,
+    first_name,
+    last_name: rest.join(" "),
+    email,
   };
 }
 
