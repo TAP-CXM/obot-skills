@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
+import { inflateRawSync } from "node:zlib";
 
 function parseArgs(argv) {
   const args = {};
@@ -47,7 +47,8 @@ function joinLines(items) {
 }
 
 function setCell(sheet, address, value) {
-  sheet.getRange(address).values = [[valueOrBlank(value)]];
+  if (!sheet) return;
+  sheet.xml = setCellXml(sheet.xml, address, valueOrBlank(value));
 }
 
 function formatDate(value) {
@@ -186,12 +187,11 @@ function ensureReferenceValues(sheet, data) {
 }
 
 async function populateWorkbook(workbookPath, input, outPath) {
-  const file = await FileBlob.load(workbookPath);
-  const workbook = await SpreadsheetFile.importXlsx(file);
-  const summarySheet = workbook.worksheets.getItem("Summary");
-  const tdSheet = workbook.worksheets.getItem("Targeting & Delivery");
-  const deliverySheet = workbook.worksheets.getItem("Delivery");
-  const referenceSheet = workbook.worksheets.getItem("Reference");
+  const workbook = await loadWorkbook(workbookPath);
+  const summarySheet = getWorksheet(workbook, "Summary", 1);
+  const tdSheet = getWorksheet(workbook, "Targeting & Delivery", 2) || getWorksheet(workbook, "Targeting", 2);
+  const deliverySheet = getWorksheet(workbook, "Delivery", 3);
+  const referenceSheet = getWorksheet(workbook, "Reference");
 
   const overview = input.overview || {};
   const summary = input.summary || {};
@@ -347,20 +347,452 @@ async function populateWorkbook(workbookPath, input, outPath) {
   ensureReferenceValues(referenceSheet, input);
 
   await fs.mkdir(path.dirname(outPath), { recursive: true });
-  const exported = await SpreadsheetFile.exportXlsx(workbook);
-  await exported.save(outPath);
+  await saveWorkbook(workbook, outPath);
+}
+
+async function loadWorkbook(workbookPath) {
+  const entries = readZipEntries(await fs.readFile(workbookPath));
+  const byName = new Map(entries.map((entry) => [entry.name, entry.content]));
+  const sheetPaths = discoverWorksheetPaths(byName);
+  const worksheets = new Map();
+  for (const [name, sheetPath] of Object.entries(sheetPaths.byName)) {
+    const content = byName.get(sheetPath);
+    if (content) worksheets.set(name, { path: sheetPath, xml: content.toString("utf8") });
+  }
+  return { entries, byName, worksheets, sheetPaths };
+}
+
+function getWorksheet(workbook, name, fallbackIndex) {
+  const exact = workbook.worksheets.get(name.toLowerCase());
+  if (exact) return exact;
+  if (!fallbackIndex) return undefined;
+  const fallbackPath = `xl/worksheets/sheet${fallbackIndex}.xml`;
+  const content = workbook.byName.get(fallbackPath);
+  if (!content) return undefined;
+  const fallback = { path: fallbackPath, xml: content.toString("utf8") };
+  workbook.worksheets.set(`__fallback_${fallbackIndex}`, fallback);
+  return fallback;
+}
+
+async function saveWorkbook(workbook, outPath) {
+  for (const sheet of workbook.worksheets.values()) {
+    workbook.byName.set(sheet.path, Buffer.from(sheet.xml, "utf8"));
+  }
+  workbook.byName.delete("xl/calcChain.xml");
+  const entries = workbook.entries
+    .filter((entry) => entry.name !== "xl/calcChain.xml")
+    .map((entry) => ({ name: entry.name, content: workbook.byName.get(entry.name) || entry.content }));
+  await fs.writeFile(outPath, createZip(entries));
+}
+
+function discoverWorksheetPaths(entries) {
+  const workbook = entries.get("xl/workbook.xml")?.toString("utf8") || "";
+  const rels = entries.get("xl/_rels/workbook.xml.rels")?.toString("utf8") || "";
+  const relTargets = new Map();
+  for (const match of rels.matchAll(/<Relationship\b[^>]*\bId="([^"]+)"[^>]*\bTarget="([^"]+)"[^>]*>/g)) {
+    relTargets.set(match[1], normalizeWorksheetPath(match[2]));
+  }
+
+  const byName = {};
+  for (const match of workbook.matchAll(/<sheet\b[^>]*\bname="([^"]+)"[^>]*\br:id="([^"]+)"[^>]*>/g)) {
+    const target = relTargets.get(match[2]);
+    if (target) byName[decodeXml(match[1]).toLowerCase()] = target;
+  }
+  return { byName };
+}
+
+function normalizeWorksheetPath(target) {
+  const cleaned = target.replace(/^\/+/, "");
+  return cleaned.startsWith("xl/") ? cleaned : `xl/${cleaned}`;
+}
+
+function setCellXml(xml, address, value) {
+  const rowNumber = address.match(/\d+$/)?.[0];
+  if (!rowNumber) return xml;
+  const rowPattern = new RegExp(`<row\\b[^>]*\\br="${escapeRegExp(rowNumber)}"[^>]*>[\\s\\S]*?<\\/row>`);
+  return xml.replace(rowPattern, (rowXml) => {
+    const escapedAddress = escapeRegExp(address);
+    const cellPattern = new RegExp(
+      `<c\\b([^>]*)\\br="${escapedAddress}"([^>]*)\\/>|<c\\b([^>]*)\\br="${escapedAddress}"([^>]*)>(?:[\\s\\S]*?)<\\/c>`,
+    );
+    return rowXml.replace(cellPattern, (_match, beforeSelf = "", afterSelf = "", beforeOpen = "", afterOpen = "") => {
+      const attrs = `${beforeSelf} ${afterSelf} ${beforeOpen} ${afterOpen}`;
+      const style = attrs.match(/\bs="[^"]+"/)?.[0] || "";
+      return `<c r="${address}"${style ? ` ${style}` : ""} t="inlineStr"><is><t xml:space="preserve">${escapeXml(String(valueOrBlank(value)))}</t></is></c>`;
+    });
+  });
+}
+
+function campaignInputFromBrief(content) {
+  const fields = parseBriefFields(content);
+  const title = firstNonEmpty(
+    getField(fields, "Campaign name", "Name", "Campaign"),
+    firstHeading(content),
+    "Outbound campaign",
+  );
+  const audience = firstNonEmpty(
+    getField(fields, "Audience", "Primary audience", "Target audience"),
+    sectionText(content, "Audience"),
+    "Audience to be confirmed",
+  );
+  const objective = firstNonEmpty(
+    getField(fields, "Objective", "Primary objective", "Campaign goal", "Goal"),
+    sectionText(content, "Objective and success metrics", "Objective"),
+    "Campaign objective to be confirmed",
+  );
+  const offer = firstNonEmpty(getField(fields, "Offer", "Value proposition"), sectionText(content, "Offer and CTA"));
+  const cta = firstNonEmpty(getField(fields, "CTA", "Primary CTA", "Call to action"), "Primary CTA to be confirmed");
+  const message = firstNonEmpty(
+    getField(fields, "Message strategy", "Single-minded message", "Key message"),
+    sectionText(content, "Message strategy"),
+    objective,
+  );
+  const channelText = firstNonEmpty(
+    getField(fields, "Channel", "Channels", "Channel plan"),
+    sectionText(content, "Channel plan"),
+    content,
+  );
+  const channels = detectChannels(channelText);
+  const primaryChannel = channels[0] || "Email";
+  const timing = firstNonEmpty(getField(fields, "Timing", "Timeline", "Send logic"), sectionText(content, "Timeline or send logic"));
+  const metrics = splitList(firstNonEmpty(getField(fields, "Success", "Success metrics", "KPI", "KPIs"), sectionText(content, "Objective and success metrics")));
+  const assumptions = splitList(sectionText(content, "Open questions and assumptions", "Assumptions"));
+  const questions = splitList(sectionText(content, "Open questions", "Questions"));
+  const internalCode = slugify(title).toUpperCase().replace(/-/g, "_");
+
+  return {
+    overview: {
+      campaign_name: title,
+      internal_campaign_code: internalCode,
+      channels,
+      primary_channel: primaryChannel,
+      secondary_channel: channels[1] || "",
+      tertiary_channel: channels[2] || "",
+    },
+    summary: {
+      campaign_template: "Outbound campaign brief",
+      campaign_nature: inferCampaignNature(content),
+      campaign_frequency: "One-off",
+      campaign_plan: firstNonEmpty(getField(fields, "Campaign plan"), "CRM outbound campaign"),
+      plan_mode: "Draft",
+      start_date: firstNonEmpty(getField(fields, "Start date", "Launch date"), timing),
+      end_date: getField(fields, "End date"),
+      description: firstNonEmpty(getField(fields, "Campaign summary", "Summary", "Description"), sectionText(content, "Campaign summary"), content),
+      business_context: sectionText(content, "Campaign summary", "Business context"),
+      why_now: getField(fields, "Why now"),
+      primary_objective: objective,
+      secondary_objective: getField(fields, "Secondary objective"),
+      offer,
+      primary_cta: cta,
+      single_minded_message: message,
+      hypothesis: firstNonEmpty(getField(fields, "Hypothesis"), `If we send ${message}, then ${audience} should be more likely to act.`),
+      kpis: metrics,
+      expected_open_rate: "",
+      expected_ctor: "",
+      expected_conversion_rate: "",
+      expected_ctr_delivered: "",
+      test_plan: firstNonEmpty(getField(fields, "Test plan"), "Define test/control or content variant before launch."),
+      dependencies: splitList(sectionText(content, "Risks, dependencies, and approvals", "Dependencies")),
+      risks: splitList(sectionText(content, "Risks")),
+      compliance_considerations: splitList(sectionText(content, "Compliance")),
+      assumptions,
+      open_questions: questions,
+    },
+    targeting: {
+      workflow_name: title,
+      workflow_internal_name: internalCode,
+      audience_description: audience,
+      audience_rules: firstNonEmpty(getField(fields, "Audience rules", "Targeting rules"), audience),
+      inclusions: splitList(firstNonEmpty(getField(fields, "Inclusions"), audience)),
+      exclusions: splitList(getField(fields, "Exclusions", "Suppressions")),
+      suppressions: splitList(getField(fields, "Suppressions")),
+      control_group: {
+        campaign_enabled: false,
+        campaign_size: "",
+        universal_enabled: false,
+      },
+      deliveries: [
+        {
+          label: `${primaryChannel} delivery`,
+          code: `${internalCode}_${primaryChannel.toUpperCase()}`,
+          channel: primaryChannel,
+          nature: inferCampaignNature(content),
+          description: message,
+          launch_date: timing,
+          send_sequence: "1",
+          quarantine_period: "",
+          throttle_rate: "",
+        },
+      ],
+      automated_quarantine_days: "",
+      automated_priority_description: "",
+      timing_rules: timing,
+      trigger_logic: timing,
+      operational_rules: "",
+      segments: [
+        {
+          code: "SEG1",
+          rule: audience,
+          treatment: message,
+          delivery_label: `${primaryChannel} delivery`,
+        },
+      ],
+      proof_list: [],
+    },
+    delivery: {
+      delivery_label: `${primaryChannel} delivery`,
+      delivery_code: `${internalCode}_${primaryChannel.toUpperCase()}`,
+      subject_line: getField(fields, "Subject line", "Headline"),
+      paragraph_1_summary: message,
+      paragraph_2_summary: offer,
+      paragraph_3_summary: cta,
+      additional_content: firstNonEmpty(getField(fields, "Creative requirements"), sectionText(content, "Creative and production requirements")),
+      content_summary: message,
+      html_supplied: false,
+      include_offer_space: Boolean(offer),
+      offer_space_notes: offer,
+      tone_and_personalization: getField(fields, "Tone", "Personalization"),
+      asset_requirements: splitList(sectionText(content, "Creative and production requirements", "Asset requirements")),
+      localization_notes: getField(fields, "Localization"),
+      qa_checkpoints: ["Confirm audience counts", "Validate personalization fallback", "Send and approve proof"],
+      personalization_fields: [],
+      content_modules: [
+        {
+          module: "Primary message",
+          audience,
+          rule: "Default",
+          image: "",
+          copy: message,
+          link_url: "",
+          link_label: cta,
+          notes: offer,
+        },
+      ],
+    },
+    governance: {
+      owner: getField(fields, "Owner"),
+      document_date: new Date().toISOString().slice(0, 10),
+      current_version: "0.1",
+      delivery_outline_name: `${title} delivery outline`,
+      delivery_outline_internal_name: internalCode,
+      estimated_provisional_cost: "",
+      documents: [{ name: "Campaign brief", nature: "Brief", last_modified: new Date().toISOString().slice(0, 10) }],
+      version_history: [{ version_no: "0.1", author: "Outbound Campaign Brief skill", date: new Date().toISOString().slice(0, 10), comments: "Draft generated from latest brief" }],
+      approvals: [{ name: "Pending approval", date: "", comments: "" }],
+    },
+  };
+}
+
+function parseBriefFields(content) {
+  const fields = {};
+  let currentField = "";
+  for (const line of content.split(/\r?\n/)) {
+    const match = line.match(/^\s*(?:[-*]\s*)?([A-Za-z][A-Za-z0-9 /&()_-]{1,64})\s*:\s*(.*)$/);
+    if (match) {
+      currentField = match[1].trim();
+      fields[currentField] = match[2].trim();
+    } else if (currentField && line.trim() && !line.trim().startsWith("#")) {
+      fields[currentField] = `${fields[currentField]}\n${line.trim()}`.trim();
+    }
+  }
+  return fields;
+}
+
+function sectionText(content, ...names) {
+  const escaped = names.map((name) => escapeRegExp(name)).join("|");
+  const match = content.match(new RegExp(`^#{1,4}\\s*(?:${escaped})\\s*$([\\s\\S]*?)(?=^#{1,4}\\s+|$)`, "im"));
+  return match?.[1]?.trim() || "";
+}
+
+function firstHeading(content) {
+  return content.match(/^#\s+(.+)$/m)?.[1]?.trim() || "";
+}
+
+function getField(fields, ...names) {
+  const normalized = new Map(Object.entries(fields).map(([key, value]) => [normalizeKey(key), value]));
+  for (const name of names) {
+    const exact = normalized.get(normalizeKey(name));
+    if (exact) return exact;
+  }
+  for (const name of names) {
+    const target = normalizeKey(name);
+    const fuzzy = Object.entries(fields).find(([key]) => normalizeKey(key).includes(target));
+    if (fuzzy?.[1]) return fuzzy[1];
+  }
+  return "";
+}
+
+function detectChannels(value) {
+  const channels = [
+    ["email", "Email"],
+    ["sms", "SMS"],
+    ["whatsapp", "WhatsApp"],
+    ["push", "Push"],
+    ["in-app", "In-app"],
+    ["in app", "In-app"],
+    ["direct mail", "Direct Mail"],
+  ];
+  const lower = String(value || "").toLowerCase();
+  const found = channels.filter(([token]) => lower.includes(token)).map(([, label]) => label);
+  return Array.from(new Set(found.length ? found : ["Email"]));
+}
+
+function inferCampaignNature(content) {
+  const lower = String(content || "").toLowerCase();
+  if (lower.includes("reactivation") || lower.includes("win-back") || lower.includes("winback")) return "Reactivation";
+  if (lower.includes("launch")) return "Product launch";
+  if (lower.includes("newsletter")) return "Newsletter";
+  if (lower.includes("offer") || lower.includes("sale") || lower.includes("discount")) return "Promotional";
+  return "Lifecycle";
+}
+
+function splitList(value) {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean);
+  return String(value || "")
+    .split(/\n|;|(?:,\s+(?=[a-z0-9]))/i)
+    .map((item) => item.replace(/^[-*]\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 8);
+}
+
+function firstNonEmpty(...values) {
+  return values.map((value) => stringifyValue(value)).find(Boolean) || "";
+}
+
+function stringifyValue(value) {
+  if (value === null || value === undefined) return "";
+  if (Array.isArray(value)) return value.map(stringifyValue).filter(Boolean).join("\n");
+  if (typeof value === "object") return Object.values(value).map(stringifyValue).filter(Boolean).join("\n");
+  return String(value).trim();
+}
+
+function normalizeKey(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function readZipEntries(bytes) {
+  const entries = [];
+  let centralOffset = centralDirectoryOffset(bytes);
+  while (centralOffset !== -1 && centralOffset + 46 <= bytes.length) {
+    if (bytes.readUInt32LE(centralOffset) !== 0x02014b50) break;
+    const method = bytes.readUInt16LE(centralOffset + 10);
+    const compressedSize = bytes.readUInt32LE(centralOffset + 20);
+    const fileNameLength = bytes.readUInt16LE(centralOffset + 28);
+    const extraLength = bytes.readUInt16LE(centralOffset + 30);
+    const commentLength = bytes.readUInt16LE(centralOffset + 32);
+    const localOffset = bytes.readUInt32LE(centralOffset + 42);
+    const nameStart = centralOffset + 46;
+    const name = bytes.subarray(nameStart, nameStart + fileNameLength).toString("utf8");
+    const localFileNameLength = bytes.readUInt16LE(localOffset + 26);
+    const localExtraLength = bytes.readUInt16LE(localOffset + 28);
+    const dataStart = localOffset + 30 + localFileNameLength + localExtraLength;
+    const data = bytes.subarray(dataStart, dataStart + compressedSize);
+    entries.push({
+      name,
+      content: method === 8 ? inflateRawSync(data) : Buffer.from(data),
+    });
+    centralOffset += 46 + fileNameLength + extraLength + commentLength;
+  }
+  return entries;
+}
+
+function centralDirectoryOffset(bytes) {
+  for (let index = bytes.length - 22; index >= 0; index -= 1) {
+    if (bytes.readUInt32LE(index) === 0x06054b50) {
+      return bytes.readUInt32LE(index + 16);
+    }
+  }
+  return -1;
+}
+
+function createZip(entries) {
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, "utf8");
+    const data = entry.content;
+    const crc = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(crc, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    localParts.push(local, name, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(crc, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+
+  const centralDirectory = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralDirectory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...localParts, centralDirectory, end]);
+}
+
+function decodeXml(value) {
+  return String(value)
+    .replace(/&quot;/g, "\"")
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function crc32(data) {
+  let crc = 0xffffffff;
+  for (const byte of data) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  if (!args.input || !args.outdir) {
-    throw new Error("Usage: node generate_campaign_outputs.mjs --input <campaign.json> --outdir <dir> [--template <template.xlsx>]");
+  if ((!args.input && !args.brief) || !args.outdir) {
+    throw new Error("Usage: node generate_campaign_outputs.mjs --input <campaign.json> --outdir <dir> [--template <template.xlsx>] [--outputs workbook,brd,docx]");
   }
 
-  const inputPath = path.resolve(args.input);
+  const inputPath = args.input ? path.resolve(args.input) : "";
   const outDir = path.resolve(args.outdir);
-  const raw = await fs.readFile(inputPath, "utf8");
-  const input = JSON.parse(raw);
+  const input = args.input
+    ? JSON.parse(await fs.readFile(inputPath, "utf8"))
+    : campaignInputFromBrief(await fs.readFile(path.resolve(args.brief), "utf8"));
   const slug = slugify(input.overview?.campaign_name || input.overview?.internal_campaign_code || "campaign");
   const scriptDir = path.dirname(fileURLToPath(import.meta.url));
   const templatePath = path.resolve(
@@ -370,28 +802,46 @@ async function main() {
   const workbookOut = path.join(outDir, `${slug}-campaign-brief.xlsx`);
   const brdOut = path.join(outDir, `${slug}-brd.md`);
   const brdDocxOut = path.join(outDir, `${slug}-brd.docx`);
+  const outputs = String(args.outputs || "workbook,brd,docx")
+    .split(",")
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
+  const generated = [];
 
-  await populateWorkbook(templatePath, input, workbookOut);
   await fs.mkdir(outDir, { recursive: true });
-  await fs.writeFile(brdOut, buildBrdMarkdown(input), "utf8");
+  if (outputs.includes("workbook")) {
+    await populateWorkbook(templatePath, input, workbookOut);
+    generated.push(workbookOut);
+  }
+  if (outputs.includes("brd")) {
+    await fs.writeFile(brdOut, buildBrdMarkdown(input), "utf8");
+    generated.push(brdOut);
+  }
 
-  const pythonBin = args.python || process.env.BUNDLED_PYTHON || "python";
-  const docxScriptPath = path.join(scriptDir, "generate_brd_docx.py");
+  if (outputs.includes("docx")) {
+    const docxInputPath = inputPath || path.join(outDir, `${slug}-campaign-input.json`);
+    if (!inputPath) {
+      await fs.writeFile(docxInputPath, JSON.stringify(input, null, 2), "utf8");
+    }
+    const pythonBin = args.python || process.env.BUNDLED_PYTHON || "python";
+    const docxScriptPath = path.join(scriptDir, "generate_brd_docx.py");
 
-  await new Promise((resolve, reject) => {
-    const child = spawn(
-      pythonBin,
-      [docxScriptPath, "--input", inputPath, "--output", brdDocxOut],
-      { stdio: "inherit" },
-    );
-    child.on("exit", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`generate_brd_docx.py exited with code ${code}`));
+    await new Promise((resolve, reject) => {
+      const child = spawn(
+        pythonBin,
+        [docxScriptPath, "--input", docxInputPath, "--output", brdDocxOut],
+        { stdio: "inherit" },
+      );
+      child.on("exit", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`generate_brd_docx.py exited with code ${code}`));
+      });
+      child.on("error", reject);
     });
-    child.on("error", reject);
-  });
+    generated.push(brdDocxOut);
+  }
 
-  process.stdout.write(`${workbookOut}\n${brdOut}\n${brdDocxOut}\n`);
+  process.stdout.write(`${generated.join("\n")}\n`);
 }
 
 main().catch((error) => {
