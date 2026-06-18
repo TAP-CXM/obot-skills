@@ -22,6 +22,15 @@ This skill supports two connected deliverables from the same campaign inputs:
 - a strategic campaign brief
 - an operational handoff package, including a filled spreadsheet workbook and a BRD
 
+For Obot campaign-creation workflows, treat the Outbound Campaign Brief as the main deliverable. Build it through these sections and keep each section aligned with the final workbook:
+
+- General: campaign name, campaign template, channel, KPIs, and source documents with versions.
+- Data: target groups, audience or segment names, segment codes, exclusions and suppressions, treatment by segment, and data approvers with email addresses.
+- Content: subject line, email body or content summary, content template, dynamic content rules, personalization fields, defaults, and fallback behavior.
+- Design: design source, Figma URL or frame, preview image reference, supplied HTML, campaign template source, and unresolved creative dependencies.
+- QA: proof recipients with names and email addresses, QA checklist generated from the brief contents, proof-send status, and launch-readiness checks.
+- Finalize: consolidated brief, workbook, document inventory, versions, assumptions, and open questions.
+
 For repeatable output generation, use the bundled script when the client runtime can run local Node and Python helpers:
 
 ```bash
@@ -56,6 +65,7 @@ Use the information already provided. Ask follow-up questions only when a missin
 
 Prefer these inputs:
 
+- Campaign name and campaign template
 - Business objective
 - Target audience or segment
 - Offer, value proposition, or key message
@@ -69,11 +79,14 @@ If important details are missing, continue with explicit assumptions rather than
 
 For operational outputs, also look for:
 
+- source documents and versions
 - workflow or campaign code naming conventions
 - delivery labels and delivery codes
 - targeting rules in plain English and rule logic form
 - control group requirements
 - proof or UAT recipients
+- data approvers and QA contacts with email addresses
+- design source such as Figma, supplied HTML, or a campaign template
 - personalization fields and fallback rules
 - content modules, links, and asset dependencies
 - approval, ownership, and version-control information
@@ -114,6 +127,12 @@ Use the template in [brief-template.md](./references/brief-template.md).
 
 Always include:
 
+- General
+- Data
+- Content
+- Design
+- QA
+- Finalize or handoff summary
 - Campaign summary
 - Objective and success metrics
 - Audience

@@ -20,6 +20,7 @@ Use this tab for campaign identity, context, KPI assumptions, and document gover
 Expected content:
 
 - campaign name
+- campaign template
 - internal campaign name or code
 - main channel
 - campaign plan and nature
@@ -52,7 +53,8 @@ Expected content:
 - delivery labels, delivery codes, channels, nature, launch dates, throttle rates, and send sequence
 - automated priority and quarantine details where relevant
 - segmentation rules and treatments
-- UAT or proof list recipients
+- segment codes
+- data approvers with email addresses
 
 Notes:
 
@@ -62,15 +64,20 @@ Notes:
 
 ## 3. Delivery
 
-Use this tab for message structure, personalization, and module-level content requirements.
+Use this tab for message structure, personalization, design source, and module-level content requirements.
 
 Expected content:
 
 - delivery label and code
 - messaging summary
+- subject line
+- content template
 - content summary
+- dynamic content rules
 - whether HTML is supplied
 - whether an offer space is included
+- design source such as Figma, supplied HTML, or campaign template
+- Figma URL, frame, version, and preview image reference when available
 - dynamic content and personalization field definitions
 - example values
 - system field names when known
@@ -85,8 +92,22 @@ Notes:
 - Treat this tab as a build brief for CRM production, not just a creative summary.
 - Personalization and dynamic-content rules should be explicit enough for implementation and QA.
 - Content modules should tie back to segments or rules when variants exist.
+- Figma preview images are referenced by file name or URL in the workbook; keep the downloadable image as a separate artifact when the client supports it.
 
-## 4. Reference
+## 4. QA and governance references
+
+Use available workbook governance/reference areas for QA when the template does not have a dedicated QA tab.
+
+Expected content:
+
+- proof recipients with names and email addresses
+- generated QA checklist based on data, content, design, and campaign rules
+- proof-send status and notes
+- approval requirements and approver names
+- source documents and versions
+- open questions and assumptions
+
+## 5. Reference
 
 Use this tab for dropdowns, enumerations, and workbook-controlled values.
 
@@ -113,7 +134,8 @@ Use these translation rules:
 - strategic objective -> `Summary`
 - audience and suppression logic -> `Targeting & Delivery`
 - execution routing and deployment setup -> `Targeting & Delivery`
-- copy/module plan and personalization schema -> `Delivery`
+- copy/module plan, dynamic content, design source, and personalization schema -> `Delivery`
+- proof recipients and QA checklist -> `Targeting & Delivery`, `Delivery`, or governance areas depending on template capacity
 - fixed picklist options -> `Reference`
 
 If a detail belongs in more than one place, put:
