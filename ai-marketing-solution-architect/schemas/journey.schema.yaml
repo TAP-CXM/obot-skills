@@ -1,0 +1,173 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+title: "AI Marketing Solution Architect Journey Specification"
+type: object
+required:
+  - journey
+properties:
+  journey:
+    type: object
+    required:
+      - name
+      - type
+      - lifecycle_stage
+      - objective
+      - customer_goal
+      - business_goal
+      - primary_kpi
+      - audience
+      - trigger
+      - entry_criteria
+      - exit_criteria
+      - steps
+      - tracking
+      - data_requirements
+      - compliance
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+      lifecycle_stage:
+        type: string
+      objective:
+        type: string
+      customer_goal:
+        type: string
+      business_goal:
+        type: string
+      primary_kpi:
+        type: string
+      secondary_kpis:
+        type: array
+        items:
+          type: string
+      tools:
+        type: object
+        additionalProperties: true
+      audience:
+        type: object
+        properties:
+          inclusion:
+            type: array
+            items:
+              type: string
+          exclusion:
+            type: array
+            items:
+              type: string
+          estimated_size:
+            type:
+              - string
+              - number
+              - "null"
+          required_fields:
+            type: array
+            items:
+              type: string
+      trigger:
+        type: object
+        properties:
+          type:
+            type: string
+          source:
+            type:
+              - string
+              - "null"
+          event_name:
+            type:
+              - string
+              - "null"
+          schedule:
+            type:
+              - string
+              - "null"
+      entry_criteria:
+        type: object
+        additionalProperties: true
+      exit_criteria:
+        type: array
+        items:
+          type: object
+          properties:
+            condition:
+              type: string
+            destination:
+              type: string
+      reentry_rules:
+        type: object
+        additionalProperties: true
+      steps:
+        type: array
+        minItems: 1
+        items:
+          type: object
+          required:
+            - step_id
+            - name
+            - platform
+            - channel
+            - timing
+          properties:
+            step_id:
+              type: string
+            name:
+              type: string
+            platform:
+              type: string
+            platform_object:
+              type:
+                - string
+                - "null"
+            channel:
+              type: string
+            timing:
+              type: string
+            content:
+              type:
+                - string
+                - "null"
+            personalisation:
+              type: array
+              items:
+                type: string
+            decision_logic:
+              type:
+                - string
+                - "null"
+            tracking:
+              type: array
+              items:
+                type: string
+            fallback:
+              type:
+                - string
+                - "null"
+            compliance_checks:
+              type: array
+              items:
+                type: string
+      experiments:
+        type: array
+        items:
+          type: object
+          additionalProperties: true
+      surveys:
+        type: array
+        items:
+          type: object
+          additionalProperties: true
+      tracking:
+        type: object
+        additionalProperties: true
+      data_requirements:
+        type: object
+        additionalProperties: true
+      compliance:
+        type: object
+        additionalProperties: true
+      build_checklist:
+        type: array
+        items:
+          type: object
+          additionalProperties: true
+additionalProperties: false
