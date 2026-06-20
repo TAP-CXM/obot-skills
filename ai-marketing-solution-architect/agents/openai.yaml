@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Marketing Solution Architect"
+  short_description: "Design build-ready marketing journeys"
+  default_prompt: "Use $ai-marketing-solution-architect to design a platform-aware lifecycle journey with a Mermaid diagram and YAML spec."
