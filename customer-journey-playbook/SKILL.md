@@ -1,6 +1,6 @@
 ---
 name: customer-journey-playbook
-description: Recommend, prioritize, and design customer journeys from a business problem, audience, lifecycle stage, product, channel mix, or user-provided journey brief. Use when Codex needs to advise which customer journey or journeys are most appropriate for acquisition, onboarding, commerce, retention, service, feedback, offline-to-online, or omnichannel orchestration problems, and when Codex needs to turn user specifics into a complete customer journey with trigger, audience, timing, channel sequence, touchpoints, message strategy, personalization, suppression, metrics, governance, and implementation-ready requirements.
+description: Recommend, prioritize, design, and progressively refine customer journeys from a business problem, audience, lifecycle stage, product, channel mix, or user-provided journey brief. Use when Codex needs to advise which customer journey or journeys are most appropriate for acquisition, onboarding, commerce, retention, service, feedback, offline-to-online, or omnichannel orchestration problems, and when Codex needs to turn user specifics into a complete customer journey with trigger, audience, timing, channel sequence, touchpoints, message strategy, personalization, suppression, metrics, governance, implementation-ready requirements, and focused follow-up questions that adapt the solution to customer specifics.
 ---
 
 # Customer Journey Playbook
@@ -58,6 +58,17 @@ Return:
 - Governance and approval checks.
 - YAML or JSON-style specification when useful.
 
+### Refine a Journey
+
+Use this mode after giving an initial recommendation or design, or when the user answers prior follow-up questions.
+
+Return:
+
+- Updated recommendation or journey design based on the new specifics.
+- Changed assumptions and resolved open questions.
+- Any newly exposed risks, dependencies, or implementation choices.
+- The next small batch of refinement questions, only where answers would materially improve the solution.
+
 ## Standard Workflow
 
 1. Parse the user context.
@@ -92,6 +103,12 @@ Return:
    - Include suppression, consent, quiet hours, complaint pause, discount caps, deliverability, and data-sharing checks.
    - Include approval points for audience, content, offer, compliance, and launch.
 
+7. Close with a focused refinement loop.
+   - Provide a practical first solution before asking questions.
+   - Ask 3-5 questions at a time, prioritized by the biggest unknowns affecting feasibility, performance, or customer experience.
+   - Cover customer-specific details such as available offers, data quality, channel permissions, survey tooling, service capacity, product constraints, and compliance only when relevant to the chosen journey.
+   - When the user answers, revise the solution and ask the next batch only if material gaps remain.
+
 ## Output Rules
 
 - Always separate confirmed inputs, assumptions, and open questions.
@@ -103,6 +120,8 @@ Return:
 - Include fallback channels when preferred channel consent or permission is missing.
 - Include data prerequisites and mark unknown fields as required, not confirmed.
 - Do not claim live platform capabilities or deployability unless the user supplies that context or another tool confirms it.
+- End recommendations and journey designs with a short "Refinement Questions" section unless the user asked for a final artifact with no follow-up.
+- Do not ask every possible discovery question. Keep each batch small and explain what the answers will refine.
 
 ## Minimum Output for Recommendations
 
@@ -117,6 +136,7 @@ Use this structure:
 7. Measurement plan
 8. Risks and governance
 9. Next decisions
+10. Refinement questions
 
 ## Minimum Output for Journey Designs
 
@@ -132,7 +152,8 @@ Use this structure:
 8. Measurement plan
 9. Suppression and governance checks
 10. Build checklist
-11. Optional YAML specification
+11. Refinement questions
+12. Optional YAML specification
 
 Use [templates/journey-design.md](templates/journey-design.md) for a full journey scaffold.
 

@@ -64,4 +64,11 @@ properties:
     type: array
     items:
       type: string
+  refinement_questions:
+    type: array
+    description: "Focused follow-up questions that would materially improve the recommendation or journey design."
+    minItems: 1
+    maxItems: 5
+    items:
+      type: string
 additionalProperties: false

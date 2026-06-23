@@ -1,5 +1,4 @@
 interface:
   display_name: "Customer Journey Playbook"
-  short_description: "Recommend and design customer journeys"
-  default_prompt: "Use $customer-journey-playbook to recommend and design customer journeys for a specific business problem."
-
+  short_description: "Recommend, design, and refine customer journeys"
+  default_prompt: "Use $customer-journey-playbook to recommend, design, and refine customer journeys for a specific business problem."
