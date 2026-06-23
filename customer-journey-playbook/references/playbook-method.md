@@ -54,6 +54,47 @@ Recommendation table:
 | Priority | Journey | Why it fits | Trigger | Audience | Channels | KPI | Dependencies |
 |---|---|---|---|---|---|---|---|
 
+## Progressive Refinement Method
+
+After the initial recommendation or journey design, refine through short discovery cycles instead of trying to collect every detail upfront.
+
+Default flow:
+
+1. Deliver a useful first solution using confirmed inputs and labelled assumptions.
+2. Identify the 3-5 unknowns most likely to change the journey design, rollout priority, channel mix, content, offer, data logic, or governance.
+3. Ask those questions in a "Refinement Questions" section at the end.
+4. When the user answers, update the recommendation or design directly, call out what changed, and ask another short batch only if material unknowns remain.
+5. Stop asking questions when additional answers would not materially improve the next buildable version.
+
+Prioritize questions that expose blockers before optimization details:
+
+| Question area | Ask when it matters for | Example questions |
+|---|---|---|
+| Offers and incentives | Commerce, win-back, churn, onboarding, loyalty, quote recovery | What offers, guarantees, loyalty benefits, or service credits are available, and are there discount caps? |
+| Data availability and quality | Audience eligibility, triggers, personalization, suppression, measurement | Which events and fields are reliable today, and where is the data incomplete, delayed, duplicated, or hard to join? |
+| Identity and consent | Cross-channel activation, offline-to-online, SMS, push, paid retargeting | Can you identify the same customer across web, app, email, CRM, POS, and support, and which channel permissions are captured? |
+| Channels and tools | Feasibility, timing, automation, fallbacks | Which channels can the team automate now, and which require manual sales, service, or agency support? |
+| Survey and feedback tooling | NPS, CSAT, CES, complaint recovery, closed-loop feedback, reactivation research | Do you have a survey or feedback tool, where do responses land, and can low scores trigger service follow-up? |
+| Service and operational capacity | Complaint recovery, high-value churn, quote follow-up, branch or call centre journeys | Who receives escalations, how quickly can they respond, and are there capacity limits or SLAs? |
+| Product or inventory constraints | Replenishment, back-in-stock, price drop, returns, onboarding, recall | Are stock, delivery, return, product usage, serial number, or subscription status events available in near real time? |
+| Segmentation and value logic | VIP, high-value churn, loyalty, retention, paid media suppression | How do you define high value, churn risk, lapsed, active, VIP, or first-value completion today? |
+| Content and assets | Touchpoint design, personalization depth, localization | What approved creative, education content, proof points, FAQs, testimonials, or localized assets exist? |
+| Compliance and market rules | Consent, retention, financial/health/service journeys, regulated markets | Which countries, brands, age restrictions, regulated claims, quiet hours, or legal approvals affect the journey? |
+| Measurement and testing | Prioritization, KPI ownership, incrementality, optimization | What is the primary success metric, what conversion event is trusted, and can you use a holdout or control group? |
+
+Question selection rules:
+
+- Ask only questions whose answers would change the proposed journey.
+- Prefer specific operational wording over broad discovery prompts.
+- Keep each batch to 3-5 questions.
+- Mix feasibility questions with one or two optimization questions when there are no obvious blockers.
+- For broad recommendation answers, ask questions that choose between candidate journeys.
+- For detailed journey designs, ask questions that refine entry logic, branches, offers, channels, measurement, and governance.
+- For feedback or service journeys, always check whether survey, ticketing, routing, ownership, and SLA data exist.
+- For commerce journeys, always check offer rules, product/catalog data, stock or price signals, and purchase attribution when relevant.
+- For retention journeys, always check inactivity definitions, churn-risk signals, customer value tiers, and suppression rules when relevant.
+- For offline or hybrid journeys, always check identity capture, consent source, POS/CRM sync timing, and local team capacity when relevant.
+
 ## Problem-to-Journey Map
 
 | Problem | Strong candidate journeys |

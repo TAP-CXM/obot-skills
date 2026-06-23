@@ -66,7 +66,15 @@
 
 - [ ] 
 
-## 11. YAML Specification
+## 11. Refinement Questions
+
+These are the next details that would materially improve the journey design:
+
+1.
+2.
+3.
+
+## 12. YAML Specification
 
 ```yaml
 journey:
@@ -82,5 +90,5 @@ journey:
   decisions: []
   suppressions: []
   metrics: []
+  refinement_questions: []
 ```
-
